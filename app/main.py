@@ -1,11 +1,19 @@
 """Main entry point for the Easy Lessons Bot application."""
 
+import asyncio
 import logging
+import sys
 
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+
+from bot.handlers import router
 from core.logging_config import setup_logging
+from settings.config import get_settings
 
 
-def main() -> None:
+async def main() -> None:
     """Main application entry point."""
     # Set up logging
     setup_logging()
@@ -14,9 +22,39 @@ def main() -> None:
     logger.info("Easy Lessons Bot starting up...")
     logger.info("Logging configured successfully")
 
-    # Initialize bot and other components in future iterations
-    logger.info("Application ready (basic setup complete)")
+    # Load configuration
+    try:
+        settings = get_settings()
+        logger.info("Configuration loaded successfully")
+        logger.info("Using model: %s", settings.openrouter_model)
+        logger.info("History limit: %s", settings.history_limit)
+    except ValueError:
+        logger.exception("Failed to load configuration")
+        logger.exception("Please check your environment variables or .env file")
+        sys.exit(1)
+
+    # Initialize bot
+    bot = Bot(
+        token=settings.telegram_bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
+
+    # Initialize dispatcher
+    dp = Dispatcher()
+    dp.include_router(router)
+
+    logger.info("Bot initialized successfully")
+
+    try:
+        # Start polling
+        logger.info("Starting bot polling...")
+        await dp.start_polling(bot)
+    except Exception:
+        logger.exception("Error during bot polling")
+    finally:
+        await bot.session.close()
+        logger.info("Bot stopped")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
