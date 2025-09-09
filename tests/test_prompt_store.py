@@ -95,9 +95,9 @@ class TestPromptStore:
         user_messages = [msg for msg in messages if msg["role"] == "user"]
         assert len(user_messages) >= 3  # 2 from history + 1 current
         
-        # Check that bot message is included
-        bot_messages = [msg for msg in messages if msg["role"] == "bot"]
-        assert len(bot_messages) >= 1
+        # Check that assistant (converted bot) message is included
+        assistant_messages = [msg for msg in messages if msg["role"] == "assistant"]
+        assert len(assistant_messages) >= 1
 
     def test_get_understanding_context(self):
         """Test understanding level context generation."""

@@ -14,7 +14,7 @@ class Message:
         Initialize message.
 
         Args:
-            role: Message role ('user' or 'bot')
+            role: Message role ('user' or 'assistant')
             content: Message content
         """
         self.role = role
@@ -23,7 +23,7 @@ class Message:
 
 
 class SessionState:
-    """In-memory session state for a user."""
+    """In-memory session state for a user with dynamic dialog context."""
 
     def __init__(self, chat_id: str | int) -> None:
         """
@@ -33,8 +33,19 @@ class SessionState:
             chat_id: Telegram chat ID
         """
         self.chat_id = chat_id
-        self.active_topic: str | None = None
-        self.understanding_level: str = "medium"  # low, medium, high
+
+        # Dynamic dialog context (iteration 8)
+        self.scenario: str = "unknown"
+        self.question: str | None = None
+        self.topic: str | None = None
+        self.is_new_question: bool = False
+        self.is_new_topic: bool = False
+        self.understanding_level: int = 5  # 0..9 scale
+        self.previous_understanding_level: int | None = None
+        self.previous_topic: str | None = None
+        self.user_preferences: list[str] = []
+
+        # Conversation history
         self.recent_messages: list[Message] = []
         self.updated_at = datetime.now()
 
@@ -43,7 +54,7 @@ class SessionState:
         Add message to conversation history.
 
         Args:
-            role: Message role ('user' or 'bot')
+            role: Message role ('user' or 'assistant')
             content: Message content
         """
         message = Message(role, content)
@@ -70,41 +81,71 @@ class SessionState:
         return self.recent_messages[-limit:]
 
     def set_topic(self, topic: str) -> None:
-        """
-        Set active topic and reset understanding level.
+        """Set current topic and update related dynamic context."""
+        # Track previous topic
+        if self.topic and self.topic != topic:
+            self.previous_topic = self.topic
 
-        Args:
-            topic: Topic name
-        """
-        self.active_topic = topic
-        self.understanding_level = "medium"  # Reset to medium for new topic
+        self.topic = topic
+        self.is_new_topic = True
+        self.scenario = "discussion"
+
+        # Reset question when switching the topic
+        self.question = None
+
+        # Reset understanding progression for new topic
+        self.previous_understanding_level = self.understanding_level
+        self.understanding_level = 5
+
         self.updated_at = datetime.now()
 
         logger.info("Set topic for session %s: %s", self.chat_id, topic)
 
-    def update_understanding_level(self, level: str) -> None:
-        """
-        Update understanding level.
+    def update_understanding_level(self, level: int | str) -> None:
+        """Update understanding level (accepts 0..9 or legacy labels)."""
+        self.previous_understanding_level = self.understanding_level
 
-        Args:
-            level: Understanding level ('low', 'medium', 'high')
-        """
-        if level not in ["low", "medium", "high"]:
+        # Support legacy labels for backward compatibility
+        if isinstance(level, str):
+            label = level.lower()
+            if label == "low":
+                numeric = 2
+            elif label == "medium":
+                numeric = 5
+            elif label == "high":
+                numeric = 8
+            else:
+                logger.warning(
+                    "Invalid understanding level label: %s, keeping current: %s",
+                    level,
+                    self.understanding_level,
+                )
+                return
+        else:
+            numeric = int(level)
+
+        if numeric < 0 or numeric > 9:
             logger.warning(
-                "Invalid understanding level: %s, keeping current: %s",
+                "Invalid understanding level value: %s, keeping current: %s",
                 level,
                 self.understanding_level,
             )
             return
 
-        self.understanding_level = level
+        self.understanding_level = numeric
         self.updated_at = datetime.now()
 
         logger.debug(
-            "Updated understanding level for session %s: %s",
+            "Updated understanding level for session %s: %d",
             self.chat_id,
-            level,
+            numeric,
         )
+
+    # Compatibility helpers for legacy access patterns
+    @property
+    def active_topic(self) -> str | None:
+        """Back-compat property alias for current topic."""
+        return self.topic
 
     def reset_session(self) -> None:
         """Reset session state."""
