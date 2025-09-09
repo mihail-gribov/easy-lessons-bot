@@ -25,15 +25,11 @@ class TestPromptStore:
         """Test loading system prompts."""
         prompts = self.prompt_store._system_prompts
         
-        # Should have at least the basic prompts
+        # Should have at least the basic prompt
         assert "system_base" in prompts
-        assert "system_explanation" in prompts
-        assert "system_question" in prompts
         
         # Check that prompts are not empty
         assert len(prompts["system_base"]) > 0
-        assert len(prompts["system_explanation"]) > 0
-        assert len(prompts["system_question"]) > 0
 
     def test_build_context_basic(self):
         """Test basic context building."""

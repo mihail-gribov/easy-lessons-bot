@@ -1,4 +1,6 @@
 Explain the specific question clearly and simply.
+Use short sentences and very common words.
 Connect with everyday examples and avoid complex terms.
-Finish with a short follow-up question to check understanding.
+Adapt depth to the provided understanding level (0–9).
+End with a short check question (“Is this clear?”, “Want another example?”).
 
