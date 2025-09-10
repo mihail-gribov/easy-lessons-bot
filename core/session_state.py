@@ -149,8 +149,8 @@ class SessionState:
 
     def reset_session(self) -> None:
         """Reset session state."""
-        self.active_topic = None
-        self.understanding_level = "medium"
+        self.topic = None
+        self.understanding_level = 5  # Reset to default medium level
         self.recent_messages.clear()
         self.updated_at = datetime.now()
 
