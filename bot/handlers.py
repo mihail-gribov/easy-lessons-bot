@@ -6,12 +6,13 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from core.llm_client import get_llm_client
+from core.llm_client import get_llm_client, LLMError
 from core.prompt_store import get_prompt_store
 from core.session_state import get_session_manager
 from core.context_processor import process_aux_result
 from core.readiness.checker import check_bot_readiness
 from core.welcome_messages import get_random_welcome_message
+from core.error_messages import get_user_friendly_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -61,13 +62,19 @@ async def handle_text_message(message: Message) -> None:
         # Build messages for dialog model
         messages = prompt_store.build_dialog_context(session, dynamic_ctx, user_text)
 
-        # Generate response
+        # Generate response with graceful degradation
         llm_client = get_llm_client()
-        response_text = await llm_client.generate_response(
-            messages=messages,
-            temperature=0.3,
-            max_tokens=512,
-        )
+        try:
+            response_text = await llm_client.generate_response(
+                messages=messages,
+                temperature=0.3,
+                max_tokens=512,
+            )
+        except LLMError as e:
+            logger.warning("Dialog model failed, using graceful degradation: %s", e)
+            from core.graceful_degradation import get_graceful_degradation_manager
+            degradation_manager = get_graceful_degradation_manager()
+            response_text = degradation_manager.handle_dialog_model_failure(session, user_text)
         
         # Add bot response to session history
         session.add_message("assistant", response_text)
@@ -76,12 +83,14 @@ async def handle_text_message(message: Message) -> None:
         await message.answer(response_text)
         logger.info("Sent LLM response to user %s", chat_id)
         
+    except LLMError as e:
+        logger.exception("LLM error processing message from user %s", chat_id)
+        error_response = get_user_friendly_error_message(e)
+        await message.answer(error_response)
+        
     except Exception as e:
-        logger.exception("Error processing message from user %s", chat_id)
-        error_response = (
-            "😔 Извини, у меня возникла проблема с обработкой твоего сообщения. "
-            "Попробуй еще раз или напиши что-то другое!"
-        )
+        logger.exception("Unexpected error processing message from user %s", chat_id)
+        error_response = get_user_friendly_error_message(e)
         await message.answer(error_response)
 
 

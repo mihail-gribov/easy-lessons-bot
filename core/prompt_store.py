@@ -192,29 +192,38 @@ Always respond in a warm, encouraging tone that makes learning fun."""
         # Add current user message last
         messages.append({"role": "user", "content": user_message})
 
-        response = await llm_client.generate_response(
-            messages=messages,
-            temperature=0.1,
-            max_tokens=200,
-        )
-
         try:
-            data = json.loads(response)
-            if not isinstance(data, dict):
-                raise ValueError("Auxiliary model did not return a JSON object")
-        except Exception:
-            # Fallback minimal context
-            data = {
-                "scenario": "unknown",
-                "topic": session.topic,
-                "question": None,
-                "is_new_question": False,
-                "is_new_topic": False,
-                "understanding_level": session.understanding_level,
-                "previous_understanding_level": session.previous_understanding_level,
-                "previous_topic": session.previous_topic,
-                "user_preferences": session.user_preferences,
-            }
+            response = await llm_client.generate_response(
+                messages=messages,
+                temperature=0.1,
+                max_tokens=200,
+            )
+
+            try:
+                data = json.loads(response)
+                if not isinstance(data, dict):
+                    raise ValueError("Auxiliary model did not return a JSON object")
+            except Exception as e:
+                logger.warning("Failed to parse auxiliary model response: %s", e)
+                # Fallback minimal context
+                data = {
+                    "scenario": "unknown",
+                    "topic": session.topic,
+                    "question": None,
+                    "is_new_question": False,
+                    "is_new_topic": False,
+                    "understanding_level": session.understanding_level,
+                    "previous_understanding_level": session.previous_understanding_level,
+                    "previous_topic": session.previous_topic,
+                    "user_preferences": session.user_preferences,
+                }
+                
+        except Exception as e:
+            logger.warning("Auxiliary model failed: %s", e)
+            # Use graceful degradation
+            from core.graceful_degradation import get_graceful_degradation_manager
+            degradation_manager = get_graceful_degradation_manager()
+            data = degradation_manager.handle_auxiliary_model_failure(session, user_message)
 
         return data
 
@@ -230,15 +239,23 @@ Always respond in a warm, encouraging tone that makes learning fun."""
         """
         messages: list[dict[str, str]] = []
 
-        # Base system prompt
-        base_prompt = self._system_prompts.get("system_base", self._get_base_system_prompt())
+        # Base system prompt with fallback
+        base_prompt = self._system_prompts.get("system_base")
+        if not base_prompt:
+            from core.graceful_degradation import get_graceful_degradation_manager
+            degradation_manager = get_graceful_degradation_manager()
+            base_prompt = degradation_manager.handle_prompt_loading_failure("system_base")
 
         # Dynamic context block
         dynamic_block = self._build_dynamic_context_block(dynamic_ctx)
 
-        # Scenario prompt
+        # Scenario prompt with fallback
         scenario_id = dynamic_ctx.get("scenario", "unknown")
-        scenario_prompt = self._scenario_prompts.get(scenario_id, "")
+        scenario_prompt = self._scenario_prompts.get(scenario_id)
+        if not scenario_prompt:
+            from core.graceful_degradation import get_graceful_degradation_manager
+            degradation_manager = get_graceful_degradation_manager()
+            scenario_prompt = degradation_manager.handle_prompt_loading_failure(f"system_{scenario_id}")
 
         system_full = f"{base_prompt}\n\n{dynamic_block}\n\n{scenario_prompt}".strip()
         messages.append({"role": "system", "content": system_full})
