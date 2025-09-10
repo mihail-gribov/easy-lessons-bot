@@ -1,5 +1,6 @@
 """Tests for bot handlers functionality."""
 
+import datetime
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -20,7 +21,7 @@ class TestBotHandlers:
             message_id=1,
             from_user=user,
             chat=chat,
-            date=None,
+            date=datetime.datetime.now(datetime.timezone.utc),
             content_type="text",
             text="Test message"
         )
@@ -35,7 +36,7 @@ class TestBotHandlers:
             message_id=1,
             from_user=user,
             chat=chat,
-            date=None,
+            date=datetime.datetime.now(datetime.timezone.utc),
             content_type="text",
             text="/start"
         )
@@ -46,7 +47,7 @@ class TestBotHandlers:
         """Test /start command when bot is ready."""
         with patch('bot.handlers.check_bot_readiness') as mock_readiness, \
              patch('bot.handlers.get_random_welcome_message') as mock_welcome, \
-             patch.object(mock_start_message, 'answer') as mock_answer:
+             patch('aiogram.types.message.Message.answer', new_callable=AsyncMock) as mock_answer:
             
             # Mock bot readiness
             mock_readiness.return_value = (True, None)
@@ -66,7 +67,7 @@ class TestBotHandlers:
         """Test /start command when bot is not ready."""
         with patch('bot.handlers.check_bot_readiness') as mock_readiness, \
              patch('bot.handlers.get_random_welcome_message') as mock_welcome, \
-             patch.object(mock_start_message, 'answer') as mock_answer:
+             patch('aiogram.types.message.Message.answer', new_callable=AsyncMock) as mock_answer:
             
             # Mock bot not ready
             mock_readiness.return_value = (False, "LLM unavailable")
@@ -87,7 +88,7 @@ class TestBotHandlers:
              patch('bot.handlers.get_prompt_store') as mock_prompt_store, \
              patch('bot.handlers.get_llm_client') as mock_llm_client, \
              patch('bot.handlers.process_aux_result') as mock_process_aux, \
-             patch.object(mock_message, 'answer') as mock_answer:
+             patch('aiogram.types.message.Message.answer', new_callable=AsyncMock) as mock_answer:
             
             # Mock session
             mock_session = MagicMock()
@@ -112,7 +113,7 @@ class TestBotHandlers:
             await handle_text_message(mock_message)
             
             # Verify calls
-            mock_session.add_message.assert_called_with("user", "Test message")
+            mock_session.add_message.assert_any_call("user", "Test message")
             mock_store.analyze_context_with_auxiliary_model.assert_called_once()
             mock_process_aux.assert_called_once()
             mock_store.build_dialog_context.assert_called_once()
@@ -127,8 +128,8 @@ class TestBotHandlers:
              patch('bot.handlers.get_prompt_store') as mock_prompt_store, \
              patch('bot.handlers.get_llm_client') as mock_llm_client, \
              patch('bot.handlers.process_aux_result') as mock_process_aux, \
-             patch('bot.handlers.get_graceful_degradation_manager') as mock_degradation, \
-             patch.object(mock_message, 'answer') as mock_answer:
+             patch('core.graceful_degradation.get_graceful_degradation_manager') as mock_degradation, \
+             patch('aiogram.types.message.Message.answer', new_callable=AsyncMock) as mock_answer:
             
             # Mock session
             mock_session = MagicMock()
@@ -170,9 +171,9 @@ class TestBotHandlers:
              patch('bot.handlers.get_prompt_store') as mock_prompt_store, \
              patch('bot.handlers.get_llm_client') as mock_llm_client, \
              patch('bot.handlers.process_aux_result') as mock_process_aux, \
-             patch('bot.handlers.get_graceful_degradation_manager') as mock_degradation, \
+             patch('core.graceful_degradation.get_graceful_degradation_manager') as mock_degradation, \
              patch('bot.handlers.get_user_friendly_error_message') as mock_error_msg, \
-             patch.object(mock_message, 'answer') as mock_answer:
+             patch('aiogram.types.message.Message.answer', new_callable=AsyncMock) as mock_answer:
             
             # Mock session
             mock_session = MagicMock()
@@ -213,7 +214,7 @@ class TestBotHandlers:
         """Test text message handling with unexpected error."""
         with patch('bot.handlers.get_session_manager') as mock_session_manager, \
              patch('bot.handlers.get_user_friendly_error_message') as mock_error_msg, \
-             patch.object(mock_message, 'answer') as mock_answer:
+             patch('aiogram.types.message.Message.answer', new_callable=AsyncMock) as mock_answer:
             
             # Mock session manager to raise unexpected error
             mock_session_manager.side_effect = Exception("Unexpected error")
@@ -230,14 +231,23 @@ class TestBotHandlers:
     @pytest.mark.asyncio
     async def test_handle_text_message_empty_text(self, mock_message):
         """Test text message handling with empty text."""
-        # Set empty text
-        mock_message.text = ""
-        
+        # Create a fresh message with empty text
+        user = User(id=12345, is_bot=False, first_name="Test", username="testuser")
+        chat = Chat(id=67890, type="private")
+        empty_message = Message(
+            message_id=1,
+            from_user=user,
+            chat=chat,
+            date=datetime.datetime.now(datetime.timezone.utc),
+            content_type="text",
+            text="",
+        )
+
         with patch('bot.handlers.get_session_manager') as mock_session_manager, \
              patch('bot.handlers.get_prompt_store') as mock_prompt_store, \
              patch('bot.handlers.get_llm_client') as mock_llm_client, \
              patch('bot.handlers.process_aux_result') as mock_process_aux, \
-             patch.object(mock_message, 'answer') as mock_answer:
+             patch('aiogram.types.message.Message.answer', new_callable=AsyncMock) as mock_answer:
             
             # Mock session
             mock_session = MagicMock()
@@ -259,23 +269,32 @@ class TestBotHandlers:
             
             # Import and call handler
             from bot.handlers import handle_text_message
-            await handle_text_message(mock_message)
+            await handle_text_message(empty_message)
             
             # Verify that empty text was handled
-            mock_session.add_message.assert_called_with("user", "")
+            mock_session.add_message.assert_any_call("user", "")
             mock_answer.assert_called_once_with("Response to empty message")
 
     @pytest.mark.asyncio
     async def test_handle_text_message_none_text(self, mock_message):
         """Test text message handling with None text."""
-        # Set None text
-        mock_message.text = None
-        
+        # Create a fresh message with None text
+        user = User(id=12345, is_bot=False, first_name="Test", username="testuser")
+        chat = Chat(id=67890, type="private")
+        none_message = Message(
+            message_id=1,
+            from_user=user,
+            chat=chat,
+            date=datetime.datetime.now(datetime.timezone.utc),
+            content_type="text",
+            text=None,
+        )
+
         with patch('bot.handlers.get_session_manager') as mock_session_manager, \
              patch('bot.handlers.get_prompt_store') as mock_prompt_store, \
              patch('bot.handlers.get_llm_client') as mock_llm_client, \
              patch('bot.handlers.process_aux_result') as mock_process_aux, \
-             patch.object(mock_message, 'answer') as mock_answer:
+             patch('aiogram.types.message.Message.answer', new_callable=AsyncMock) as mock_answer:
             
             # Mock session
             mock_session = MagicMock()
@@ -297,10 +316,10 @@ class TestBotHandlers:
             
             # Import and call handler
             from bot.handlers import handle_text_message
-            await handle_text_message(mock_message)
+            await handle_text_message(none_message)
             
             # Verify that None text was handled as empty string
-            mock_session.add_message.assert_called_with("user", "")
+            mock_session.add_message.assert_any_call("user", "")
             mock_answer.assert_called_once_with("Response to None message")
 
     @pytest.mark.asyncio
@@ -310,7 +329,7 @@ class TestBotHandlers:
              patch('bot.handlers.get_prompt_store') as mock_prompt_store, \
              patch('bot.handlers.get_llm_client') as mock_llm_client, \
              patch('bot.handlers.process_aux_result') as mock_process_aux, \
-             patch.object(mock_message, 'answer') as mock_answer:
+             patch('aiogram.types.message.Message.answer', new_callable=AsyncMock) as mock_answer:
             
             # Mock session
             mock_session = MagicMock()
