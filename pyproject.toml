@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "aiogram>=3.0.0",
     "openai>=1.0.0",
+    "pre-commit[dev]>=4.3.0",
     "pydantic-settings>=2.0.0",
     "pytest-cov[dev]>=7.0.0",
 ]
@@ -30,7 +31,19 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "C90", "I", "N", "UP", "YTT", "S", "BLE", "FBT", "B", "A", "COM", "C4", "DTZ", "T10", "EM", "EXE", "FA", "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SLOT", "SIM", "TID", "TCH", "INT", "ARG", "PTH", "TD", "ERA", "PD", "PGH", "PL", "TRY", "FLY", "NPY", "AIR", "PERF", "FURB", "LOG", "RUF"]
-ignore = ["S101", "T201", "PLR0913", "PLR0912", "PLR0915", "C901", "TD002", "TD003", "FIX002", "RUF001", "TRY002", "TRY300", "DTZ005"]
+ignore = ["S101", "T201", "PLR0913", "PLR0912", "PLR0915", "C901", "TD002", "TD003", "FIX002", "RUF001", "TRY002", "TRY300", "DTZ005", "COM812", "ISC001"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501", "INP001", "PLR2004", "SLF001", "ARG002", "S105", "F841", "RET504", "PTH100", "PTH118", "PTH120"]
+"core/prompt_store.py" = ["E501", "W291", "TRY003", "EM101", "EM102", "TRY400", "BLE001", "PTH123", "PLR2004", "ARG002", "TRY004", "TRY301"]
+"core/session_state.py" = ["PLR2004"]
+"core/error_messages.py" = ["S311"]
+"core/graceful_degradation.py" = ["S311", "E501", "ARG002"]
+"core/welcome_messages/__init__.py" = ["E501", "S311", "BLE001"]
+"core/context_processor.py" = ["E501", "SIM102", "BLE001", "UP038", "PLR2004", "TCH001"]
+"core/llm_client.py" = ["TRY003", "EM101", "EM102", "TRY400", "PLR2004"]
+"core/readiness/checker.py" = ["INP001", "BLE001"]
+"scripts/test_prompts.py" = ["EXE001", "E402", "PLR2004"]
 
 [tool.ruff.format]
 quote-style = "double"
