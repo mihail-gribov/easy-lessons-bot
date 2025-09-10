@@ -2,9 +2,14 @@
 
 import asyncio
 import logging
-from typing import Any
 
-from openai import AsyncOpenAI, RateLimitError, APITimeoutError, APIConnectionError, APIError
+from openai import (
+    APIConnectionError,
+    APIError,
+    APITimeoutError,
+    AsyncOpenAI,
+    RateLimitError,
+)
 
 from settings.config import get_settings
 
@@ -13,27 +18,22 @@ logger = logging.getLogger(__name__)
 
 class LLMError(Exception):
     """Base exception for LLM-related errors."""
-    pass
 
 
 class LLMTimeoutError(LLMError):
     """Raised when LLM request times out."""
-    pass
 
 
 class LLMRateLimitError(LLMError):
     """Raised when LLM rate limit is exceeded."""
-    pass
 
 
 class LLMConnectionError(LLMError):
     """Raised when LLM connection fails."""
-    pass
 
 
 class LLMAPIError(LLMError):
     """Raised when LLM API returns an error."""
-    pass
 
 
 class LLMClient:
@@ -113,17 +113,21 @@ class LLMClient:
 
                 return response_text
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("LLM request timeout (attempt %d/2)", attempt + 1)
                 if attempt == 1:  # Last attempt
-                    raise LLMTimeoutError("LLM request timeout after 2 attempts") from None
+                    raise LLMTimeoutError(
+                        "LLM request timeout after 2 attempts"
+                    ) from None
 
             except RateLimitError as e:
                 logger.error("LLM rate limit exceeded: %s", e)
                 raise LLMRateLimitError(f"Rate limit exceeded: {e}") from e
 
             except APIConnectionError as e:
-                logger.warning("LLM connection error (attempt %d/2): %s", attempt + 1, e)
+                logger.warning(
+                    "LLM connection error (attempt %d/2): %s", attempt + 1, e
+                )
                 if attempt == 0:
                     await asyncio.sleep(0.5)  # Wait 0.5s before retry
                     continue
@@ -138,12 +142,12 @@ class LLMClient:
 
             except APIError as e:
                 # Check if it's a retryable 5xx error
-                status_code = getattr(e, 'status_code', None)
+                status_code = getattr(e, "status_code", None)
                 if status_code and 500 <= status_code < 600 and attempt == 0:
                     logger.warning("LLM 5xx error (attempt %d/2): %s", attempt + 1, e)
                     await asyncio.sleep(0.5)  # Wait 0.5s before retry
                     continue
-                
+
                 logger.error("LLM API error: %s", e)
                 raise LLMAPIError(f"API error: {e}") from e
 
@@ -151,8 +155,14 @@ class LLMClient:
                 # Generic error handling for unexpected exceptions
                 error_msg = str(e).lower()
                 retryable_keywords = [
-                    "network", "connection", "timeout", "5xx",
-                    "500", "502", "503", "504",
+                    "network",
+                    "connection",
+                    "timeout",
+                    "5xx",
+                    "500",
+                    "502",
+                    "503",
+                    "504",
                 ]
                 is_retryable = any(
                     keyword in error_msg for keyword in retryable_keywords
@@ -160,7 +170,9 @@ class LLMClient:
 
                 if is_retryable and attempt == 0:
                     logger.warning(
-                        "Retryable LLM error (attempt %d/2): %s", attempt + 1, e,
+                        "Retryable LLM error (attempt %d/2): %s",
+                        attempt + 1,
+                        e,
                     )
                     await asyncio.sleep(0.5)  # Wait 0.5s before retry
                     continue

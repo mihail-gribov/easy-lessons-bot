@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from core.session_state import SessionState
 
@@ -25,7 +25,7 @@ def _normalize_scenario(s: str | None) -> str:
     return mapping.get(s_lower, "unknown")
 
 
-def process_aux_result(session: SessionState, aux: Dict[str, Any]) -> Dict[str, Any]:
+def process_aux_result(session: SessionState, aux: dict[str, Any]) -> dict[str, Any]:
     """
     Merge auxiliary model result with session state to produce dynamic context.
 
@@ -74,7 +74,9 @@ def process_aux_result(session: SessionState, aux: Dict[str, Any]) -> Dict[str, 
     user_preferences: list[str] = []
     aux_prefs = aux.get("user_preferences")
     if isinstance(aux_prefs, list):
-        user_preferences = [str(x) for x in aux_prefs if isinstance(x, (str, int, float))]
+        user_preferences = [
+            str(x) for x in aux_prefs if isinstance(x, (str, int, float))
+        ]
 
     # Previous topic
     previous_topic = session.previous_topic if session.previous_topic else None
@@ -84,7 +86,9 @@ def process_aux_result(session: SessionState, aux: Dict[str, Any]) -> Dict[str, 
     # Recommendation if level >= 9
     recommendation: str | None = None
     if understanding_level_int >= 9:
-        recommendation = "Consider wrapping up the current topic/question and move to a new one."
+        recommendation = (
+            "Consider wrapping up the current topic/question and move to a new one."
+        )
 
     # Update session with merged context
     session.scenario = scenario
@@ -98,7 +102,7 @@ def process_aux_result(session: SessionState, aux: Dict[str, Any]) -> Dict[str, 
     session.user_preferences = user_preferences
 
     # Compose dynamic context dict
-    dynamic_context: Dict[str, Any] = {
+    dynamic_context: dict[str, Any] = {
         "scenario": scenario,
         "question": question,
         "topic": topic,
@@ -114,5 +118,3 @@ def process_aux_result(session: SessionState, aux: Dict[str, Any]) -> Dict[str, 
         dynamic_context["recommendation"] = recommendation
 
     return dynamic_context
-
-

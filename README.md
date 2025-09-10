@@ -70,3 +70,10 @@ Pytest runs via pre-commit at push time (configured in `.pre-commit-config.yaml`
 
 ## Project structure
 See `doc/vision.md` for architecture and tech vision.
+
+## Usage examples
+- Start the bot in Telegram and send:
+  - "Новая тема" — to begin a new topic.
+  - "Объясни дроби простыми словами" — the bot explains fractions simply.
+  - "Почему небо голубое?" — the bot answers and may ask a follow-up.
+- The bot adapts explanations to a child-friendly style and keeps short dialog history (up to 30 messages).

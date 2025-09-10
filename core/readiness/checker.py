@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Tuple
-
 from settings.config import get_settings
 
 
-async def check_bot_readiness() -> Tuple[bool, str]:
+async def check_bot_readiness() -> tuple[bool, str]:
     """Validate essential configuration and basic environment.
 
     Returns:
@@ -26,5 +24,3 @@ async def check_bot_readiness() -> Tuple[bool, str]:
 
     # Network/LLM ping is optional in MVP to avoid delays on /start
     return True, "OK"
-
-

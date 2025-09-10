@@ -21,7 +21,9 @@ class TestDialogBuilding:
             "user_preferences": ["примеры", "мини-игры"],
         }
 
-        messages = store.build_dialog_context(session, dynamic_ctx, "Начнем изучать дроби")
+        messages = store.build_dialog_context(
+            session, dynamic_ctx, "Начнем изучать дроби"
+        )
 
         assert messages[0]["role"] == "system"
         content = messages[0]["content"]
@@ -32,5 +34,3 @@ class TestDialogBuilding:
         # Ensure user message is last
         assert messages[-1]["role"] == "user"
         assert "Начнем изучать дроби" in messages[-1]["content"]
-
-

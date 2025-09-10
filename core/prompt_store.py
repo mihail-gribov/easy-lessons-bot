@@ -1,12 +1,11 @@
 """Prompt store for managing system prompts and context building."""
 
-import logging
 import json
-import os
+import logging
 from pathlib import Path
 from typing import Any
 
-from core.session_state import Message, SessionState
+from core.session_state import SessionState
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ class PromptStore:
         for prompt_file in prompts_dir.glob("*.txt"):
             prompt_name = prompt_file.stem
             try:
-                with open(prompt_file, "r", encoding="utf-8") as f:
+                with open(prompt_file, encoding="utf-8") as f:
                     prompts[prompt_name] = f.read().strip()
                 logger.debug("Loaded prompt: %s", prompt_name)
             except Exception as e:
@@ -63,7 +62,7 @@ class PromptStore:
         for prompt_file in scenarios_dir.glob("system_*.txt"):
             scenario_id = prompt_file.stem.replace("system_", "")
             try:
-                with open(prompt_file, "r", encoding="utf-8") as f:
+                with open(prompt_file, encoding="utf-8") as f:
                     prompts[scenario_id] = f.read().strip()
                 logger.debug("Loaded scenario prompt: %s", scenario_id)
             except Exception as e:
@@ -108,7 +107,9 @@ Always respond in a warm, encouraging tone that makes learning fun."""
 
         # Add base system prompt and understanding context (legacy)
         base_prompt = self._system_prompts["system_base"]
-        understanding_context = self._get_understanding_context(session.understanding_level)
+        understanding_context = self._get_understanding_context(
+            session.understanding_level
+        )
         system_prompt = f"{base_prompt}\n\n{understanding_context}"
         messages.append({"role": "system", "content": system_prompt})
 
@@ -217,13 +218,16 @@ Always respond in a warm, encouraging tone that makes learning fun."""
                     "previous_topic": session.previous_topic,
                     "user_preferences": session.user_preferences,
                 }
-                
+
         except Exception as e:
             logger.warning("Auxiliary model failed: %s", e)
             # Use graceful degradation
             from core.graceful_degradation import get_graceful_degradation_manager
+
             degradation_manager = get_graceful_degradation_manager()
-            data = degradation_manager.handle_auxiliary_model_failure(session, user_message)
+            data = degradation_manager.handle_auxiliary_model_failure(
+                session, user_message
+            )
 
         return data
 
@@ -243,8 +247,11 @@ Always respond in a warm, encouraging tone that makes learning fun."""
         base_prompt = self._system_prompts.get("system_base")
         if not base_prompt:
             from core.graceful_degradation import get_graceful_degradation_manager
+
             degradation_manager = get_graceful_degradation_manager()
-            base_prompt = degradation_manager.handle_prompt_loading_failure("system_base")
+            base_prompt = degradation_manager.handle_prompt_loading_failure(
+                "system_base"
+            )
 
         # Dynamic context block
         dynamic_block = self._build_dynamic_context_block(dynamic_ctx)
@@ -254,8 +261,11 @@ Always respond in a warm, encouraging tone that makes learning fun."""
         scenario_prompt = self._scenario_prompts.get(scenario_id)
         if not scenario_prompt:
             from core.graceful_degradation import get_graceful_degradation_manager
+
             degradation_manager = get_graceful_degradation_manager()
-            scenario_prompt = degradation_manager.handle_prompt_loading_failure(f"system_{scenario_id}")
+            scenario_prompt = degradation_manager.handle_prompt_loading_failure(
+                f"system_{scenario_id}"
+            )
 
         system_full = f"{base_prompt}\n\n{dynamic_block}\n\n{scenario_prompt}".strip()
         messages.append({"role": "system", "content": system_full})
@@ -332,10 +342,12 @@ Always respond in a warm, encouraging tone that makes learning fun."""
         for msg in recent_messages:
             # Convert 'bot' role to 'assistant' for LLM compatibility
             role = "assistant" if msg.role == "bot" else msg.role
-            messages.append({
-                "role": role,
-                "content": msg.content,
-            })
+            messages.append(
+                {
+                    "role": role,
+                    "content": msg.content,
+                }
+            )
 
         return messages
 
@@ -379,9 +391,9 @@ Always respond in a warm, encouraging tone that makes learning fun."""
         return topic.lower() in [t.lower() for t in available_topics]
 
     async def identify_topic_with_llm(
-        self, 
-        session: SessionState, 
-        user_message: str
+        self,
+        session: SessionState,
+        user_message: str,
     ) -> str:
         """
         Legacy topic identification kept for compatibility in tests.
@@ -424,9 +436,7 @@ Always respond in a warm, encouraging tone that makes learning fun."""
 
     def _get_topic_identification_fallback(self) -> str:
         """Deprecated: retained for tests that may import it. Returns minimal text."""
-        return (
-            "You are a topic identification assistant. Return ONLY one word from the allowed list."
-        )
+        return "You are a topic identification assistant. Return ONLY one word from the allowed list."
 
 
 # Global prompt store instance

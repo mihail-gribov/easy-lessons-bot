@@ -1,19 +1,19 @@
 """Tests for LLM client functionality."""
 
-import pytest
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+from openai import APIConnectionError, APIError, APITimeoutError, RateLimitError
+
 from core.llm_client import (
-    LLMClient,
-    LLMError,
-    LLMTimeoutError,
-    LLMRateLimitError,
-    LLMConnectionError,
     LLMAPIError,
+    LLMClient,
+    LLMConnectionError,
+    LLMError,
+    LLMRateLimitError,
+    LLMTimeoutError,
     get_llm_client,
 )
-from openai import RateLimitError, APITimeoutError, APIConnectionError, APIError
 
 
 class TestLLMClient:
@@ -22,7 +22,7 @@ class TestLLMClient:
     @pytest.fixture
     def mock_settings(self):
         """Mock settings for testing."""
-        with patch('core.llm_client.get_settings') as mock:
+        with patch("core.llm_client.get_settings") as mock:
             mock_settings = MagicMock()
             mock_settings.openrouter_api_key = "test_api_key"
             mock_settings.openrouter_model = "gpt-4o-mini"
@@ -51,7 +51,9 @@ class TestLLMClient:
         mock_response.usage = MagicMock()
         mock_response.usage.total_tokens = 150
 
-        llm_client.client.chat.completions.create = AsyncMock(return_value=mock_response)
+        llm_client.client.chat.completions.create = AsyncMock(
+            return_value=mock_response
+        )
 
         messages = [{"role": "user", "content": "Hello"}]
         response = await llm_client.generate_response(messages)
@@ -67,29 +69,37 @@ class TestLLMClient:
         mock_response.choices[0].message.content = "Custom response"
         mock_response.usage = None
 
-        llm_client.client.chat.completions.create = AsyncMock(return_value=mock_response)
+        llm_client.client.chat.completions.create = AsyncMock(
+            return_value=mock_response
+        )
 
         messages = [{"role": "user", "content": "Test"}]
         response = await llm_client.generate_response(
-            messages, temperature=0.5, max_tokens=500
+            messages,
+            temperature=0.5,
+            max_tokens=500,
         )
 
         assert response == "Custom response"
-        
+
         # Check that custom parameters were used
         call_args = llm_client.client.chat.completions.create.call_args
         assert call_args[1]["temperature"] == 0.5
         assert call_args[1]["max_tokens"] == 500
 
     @pytest.mark.asyncio
-    async def test_generate_response_uses_default_params(self, llm_client, mock_settings):
+    async def test_generate_response_uses_default_params(
+        self, llm_client, mock_settings
+    ):
         """Test that default parameters from settings are used."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = "Default response"
         mock_response.usage = None
 
-        llm_client.client.chat.completions.create = AsyncMock(return_value=mock_response)
+        llm_client.client.chat.completions.create = AsyncMock(
+            return_value=mock_response
+        )
 
         messages = [{"role": "user", "content": "Test"}]
         await llm_client.generate_response(messages)
@@ -104,7 +114,7 @@ class TestLLMClient:
     async def test_generate_response_timeout_error(self, llm_client):
         """Test timeout error handling."""
         llm_client.client.chat.completions.create = AsyncMock(
-            side_effect=asyncio.TimeoutError("Request timeout")
+            side_effect=TimeoutError("Request timeout"),
         )
 
         messages = [{"role": "user", "content": "Test"}]
@@ -119,7 +129,7 @@ class TestLLMClient:
         mock_response = MagicMock()
         mock_response.request = MagicMock()
         error = RateLimitError("Rate limit exceeded", response=mock_response, body=None)
-        
+
         llm_client.client.chat.completions.create = AsyncMock(side_effect=error)
 
         messages = [{"role": "user", "content": "Test"}]
@@ -140,7 +150,7 @@ class TestLLMClient:
         error = APIConnectionError(request=mock_request, message="Connection failed")
 
         llm_client.client.chat.completions.create = AsyncMock(
-            side_effect=[error, mock_response]
+            side_effect=[error, mock_response],
         )
 
         messages = [{"role": "user", "content": "Test"}]
@@ -155,7 +165,7 @@ class TestLLMClient:
         # Create proper APIConnectionError
         mock_request = MagicMock()
         error = APIConnectionError(request=mock_request, message="Connection failed")
-        
+
         llm_client.client.chat.completions.create = AsyncMock(side_effect=error)
 
         messages = [{"role": "user", "content": "Test"}]
@@ -174,8 +184,8 @@ class TestLLMClient:
         llm_client.client.chat.completions.create = AsyncMock(
             side_effect=[
                 APITimeoutError("API timeout"),
-                mock_response
-            ]
+                mock_response,
+            ],
         )
 
         messages = [{"role": "user", "content": "Test"}]
@@ -190,7 +200,7 @@ class TestLLMClient:
         # Create proper APITimeoutError
         mock_request = MagicMock()
         error = APITimeoutError(request=mock_request)
-        
+
         llm_client.client.chat.completions.create = AsyncMock(side_effect=error)
 
         messages = [{"role": "user", "content": "Test"}]
@@ -208,11 +218,13 @@ class TestLLMClient:
 
         # Create 5xx error
         mock_request = MagicMock()
-        error = APIError(message="Internal server error", request=mock_request, body=None)
+        error = APIError(
+            message="Internal server error", request=mock_request, body=None
+        )
         error.status_code = 500
 
         llm_client.client.chat.completions.create = AsyncMock(
-            side_effect=[error, mock_response]
+            side_effect=[error, mock_response],
         )
 
         messages = [{"role": "user", "content": "Test"}]
@@ -226,7 +238,9 @@ class TestLLMClient:
         """Test 5xx error with failed retry."""
         # Create 5xx error
         mock_request = MagicMock()
-        error = APIError(message="Internal server error", request=mock_request, body=None)
+        error = APIError(
+            message="Internal server error", request=mock_request, body=None
+        )
         error.status_code = 500
 
         llm_client.client.chat.completions.create = AsyncMock(side_effect=error)
@@ -262,8 +276,8 @@ class TestLLMClient:
         llm_client.client.chat.completions.create = AsyncMock(
             side_effect=[
                 Exception("Network error"),
-                mock_response
-            ]
+                mock_response,
+            ],
         )
 
         messages = [{"role": "user", "content": "Test"}]
@@ -276,7 +290,7 @@ class TestLLMClient:
     async def test_generate_response_retryable_generic_error_failure(self, llm_client):
         """Test retryable generic error with failed retry."""
         llm_client.client.chat.completions.create = AsyncMock(
-            side_effect=Exception("Network error")
+            side_effect=Exception("Network error"),
         )
 
         messages = [{"role": "user", "content": "Test"}]
@@ -288,7 +302,7 @@ class TestLLMClient:
     async def test_generate_response_non_retryable_generic_error(self, llm_client):
         """Test non-retryable generic error."""
         llm_client.client.chat.completions.create = AsyncMock(
-            side_effect=Exception("Invalid request format")
+            side_effect=Exception("Invalid request format"),
         )
 
         messages = [{"role": "user", "content": "Test"}]
@@ -304,7 +318,9 @@ class TestLLMClient:
         mock_response.choices[0].message.content = None  # Empty content
         mock_response.usage = None
 
-        llm_client.client.chat.completions.create = AsyncMock(return_value=mock_response)
+        llm_client.client.chat.completions.create = AsyncMock(
+            return_value=mock_response
+        )
 
         messages = [{"role": "user", "content": "Test"}]
         response = await llm_client.generate_response(messages)
@@ -319,7 +335,9 @@ class TestLLMClient:
         mock_response.choices[0].message.content = "Response without usage"
         mock_response.usage = None  # No usage info
 
-        llm_client.client.chat.completions.create = AsyncMock(return_value=mock_response)
+        llm_client.client.chat.completions.create = AsyncMock(
+            return_value=mock_response
+        )
 
         messages = [{"role": "user", "content": "Test"}]
         response = await llm_client.generate_response(messages)
@@ -332,7 +350,7 @@ class TestGlobalLLMClient:
 
     def test_get_llm_client_singleton(self):
         """Test that get_llm_client returns singleton."""
-        with patch('core.llm_client.get_settings') as mock_settings:
+        with patch("core.llm_client.get_settings") as mock_settings:
             mock_settings.return_value.openrouter_api_key = "test_key"
             mock_settings.return_value.openrouter_model = "test_model"
             mock_settings.return_value.llm_temperature = 0.9

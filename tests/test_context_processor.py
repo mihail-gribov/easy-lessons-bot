@@ -51,7 +51,8 @@ class TestContextProcessor:
 
         assert ctx["scenario"] in {"discussion", "unknown"}
         assert ctx["topic"] == "Физика"
-        assert ctx["is_new_topic"] in {False, True}  # depends on initial state after set_topic
+        assert ctx["is_new_topic"] in {
+            False,
+            True,
+        }  # depends on initial state after set_topic
         assert ctx["is_new_question"] is False
-
-
