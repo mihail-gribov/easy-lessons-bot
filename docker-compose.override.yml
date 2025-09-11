@@ -1,0 +1,14 @@
+# Development overrides for docker-compose.yml
+# This file is automatically loaded by docker-compose for development
+version: '3.8'
+
+services:
+  easy-lessons-bot:
+    # Override for development
+    volumes:
+      - .:/app  # Mount source code for live reloading
+      - ./log:/log
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    command: ["python", "-m", "app.main"]

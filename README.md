@@ -37,28 +37,86 @@ A Telegram bot for simple, friendly explanations powered by an LLM (OpenRouter v
 - `HISTORY_LIMIT` (default: `30`)
 
 ## Development
-- Lint:
-  ```bash
-  make lint
-  ```
-- Format:
-  ```bash
-  make fmt
-  ```
-- Tests:
-  ```bash
-  make test
-  ```
+
+### Code Quality
+```bash
+# Lint code
+make lint
+
+# Format code
+make fmt
+
+# Run tests
+make test
+```
+
+### Available Commands
+View all available commands:
+```bash
+make help
+```
+
+This shows all development, Docker, and utility commands with descriptions.
 
 ## Docker
-Build image:
+
+### Quick Start
+Copy environment file and run:
 ```bash
+cp .env.example .env
+# Edit .env with your tokens
+make docker-compose-up
+```
+
+### Docker Commands
+
+#### Single Container
+```bash
+# Build image
 make docker-build
-```
-Run container (expects env file with required variables):
-```bash
+
+# Build with custom tag
+make docker-build-tag
+
+# Run container
 make docker-run
+
+# Stop container
+make docker-stop
+
+# View logs
+make docker-logs
+
+# Clean up Docker system
+make docker-clean
 ```
+
+#### Docker Compose (Recommended)
+```bash
+# Production mode
+make docker-compose-up
+
+# Development mode (with live reloading)
+make docker-compose-dev
+
+# Stop all services
+make docker-compose-down
+
+# View logs
+make docker-compose-logs
+
+# Restart services
+make docker-compose-restart
+```
+
+### Environment Setup
+1. Copy example environment file:
+   ```bash
+   cp .env.example .env
+   ```
+2. Edit `.env` with your actual tokens:
+   - `TELEGRAM_BOT_TOKEN` - from BotFather
+   - `OPENROUTER_API_KEY` - from OpenRouter
 
 ## Pre-commit
 Install hooks and run:

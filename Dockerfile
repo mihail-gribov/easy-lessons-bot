@@ -1,7 +1,8 @@
 # Dockerfile for Easy Lessons Bot (MVP)
-# Base image: Python 3.12 slim
+# Multi-stage build for optimized production image
 
-FROM python:3.12-slim AS base
+# Build stage
+FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -10,33 +11,49 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System deps (minimal)
+# Install system dependencies for building
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv (user-local)
+# Install uv (fast Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
     && ln -s /root/.local/bin/uv /usr/local/bin/uv
 
 # Copy dependency manifests first (for better caching)
-COPY pyproject.toml ./
-COPY uv.lock* ./
+COPY pyproject.toml uv.lock* ./
 
 # Install project dependencies into a local virtualenv at /app/.venv
 RUN uv sync --frozen --no-dev \
     && find /root/.cache -type f -delete || true
 
-# Make venv active by default for subsequent layers and runtime
-ENV VIRTUAL_ENV=/app/.venv
-ENV PATH="/app/.venv/bin:$PATH"
+# Runtime stage
+FROM python:3.12-slim AS runtime
 
-# Copy application source
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
+
+WORKDIR /app
+
+# Install only runtime system dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy virtual environment from builder stage
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application source code
 COPY app/ app/
 COPY bot/ bot/
 COPY core/ core/
 COPY settings/ settings/
-COPY Makefile Makefile
 
 # Create non-root user and log directory
 RUN adduser --disabled-password --gecos '' appuser \
@@ -44,6 +61,10 @@ RUN adduser --disabled-password --gecos '' appuser \
     && chown -R appuser:appuser /app /log
 
 USER appuser
+
+# Health check to monitor bot status
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)" || exit 1
 
 # Default command runs the bot
 CMD ["python", "-m", "app.main"]

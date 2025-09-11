@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Production service
+  easy-lessons-bot:
+    build: .
+    container_name: easy-lessons-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./log:/log
+    ports:
+      - "8001:8001"  # Expose port for health checks or API if needed
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - bot-network
+
+  # Development service with live code reloading
+  easy-lessons-bot-dev:
+    build: .
+    container_name: easy-lessons-bot-dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - .:/app  # Mount source code for live reloading
+      - ./log:/log
+    ports:
+      - "8001:8001"
+    command: ["python", "-m", "app.main"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - bot-network
+    profiles:
+      - dev
+
+networks:
+  bot-network:
+    driver: bridge
+
+# Optional: Add volumes for persistent data if needed in the future
+volumes:
+  bot-logs:
+    driver: local
