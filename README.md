@@ -3,12 +3,15 @@
 A Telegram bot for simple, friendly explanations powered by an LLM (OpenRouter via OpenAI SDK).
 
 ## Features
-- Aiogram 3 (long polling)
-- Two-model flow: auxiliary analysis + dialog model
-- In-memory session state with message history
-- Prompt store with dynamic context
-- Robust error handling and graceful degradation
-- Logging to `/log/app.log`
+- **Aiogram 3** (long polling)
+- **Two-model architecture**: auxiliary analysis + dialog model for intelligent context understanding
+- **Persistent data storage** with SQLite and graceful degradation
+- **In-memory session state** with message history
+- **Prompt store** with dynamic context and scenario-based responses
+- **Robust error handling** and graceful degradation
+- **Automatic database migrations** and cleanup
+- **Logging** to `/log/app.log`
+- **Docker support** with persistent data volumes
 
 ## Requirements
 - Python 3.12
@@ -72,6 +75,7 @@ A Telegram bot for simple, friendly explanations powered by an LLM (OpenRouter v
      --env-file .env \
      -p 8001:8001 \
      -v ./log:/log \
+     -v ./data:/app/data \
      yourusername/easy-lessons-bot:latest
    ```
 
@@ -85,12 +89,39 @@ A Telegram bot for simple, friendly explanations powered by an LLM (OpenRouter v
    ```
 
 ## Environment variables
-- `TELEGRAM_BOT_TOKEN` (required)
-- `OPENROUTER_API_KEY` (required)
-- `OPENROUTER_MODEL` (default: `gpt-4o-mini`)
-- `LLM_TEMPERATURE` (default: `0.9`)
-- `LLM_MAX_TOKENS` (default: `6000`)
-- `HISTORY_LIMIT` (default: `30`)
+- `TELEGRAM_BOT_TOKEN` (required) - Telegram bot token from BotFather
+- `OPENROUTER_API_KEY` (required) - OpenRouter API key for LLM access
+- `OPENROUTER_MODEL` (default: `gpt-4o-mini`) - OpenRouter model to use
+- `LLM_TEMPERATURE` (default: `0.9`) - LLM temperature parameter (0.0-2.0)
+- `LLM_MAX_TOKENS` (default: `6000`) - Maximum tokens for LLM response
+- `HISTORY_LIMIT` (default: `30`) - Maximum number of messages to keep in history
+- `DATABASE_ENABLED` (default: `true`) - Enable database persistence
+- `DATABASE_PATH` (default: `data/bot.db`) - Path to SQLite database file
+- `DATABASE_CLEANUP_HOURS` (default: `168`) - Hours after which to cleanup old sessions (7 days)
+
+## Architecture
+
+### Two-Model Flow
+The bot uses a sophisticated two-model architecture:
+
+1. **Auxiliary Model**: Analyzes context and determines:
+   - Current scenario (discussion, explanation, unknown)
+   - Topic identification
+   - Understanding level (0-9)
+   - Whether it's a new question or topic
+
+2. **Dialog Model**: Generates responses based on:
+   - System prompts with dynamic context
+   - Scenario-specific prompts
+   - User's understanding level
+   - Conversation history
+
+### Data Persistence
+- **SQLite database** for persistent storage
+- **Graceful degradation**: Falls back to in-memory storage if database is unavailable
+- **Automatic migrations**: Database schema updates automatically
+- **Session cleanup**: Old sessions are automatically cleaned up
+- **Repository pattern**: Clean separation of data access logic
 
 ## Development
 
@@ -191,3 +222,5 @@ See `doc/vision.md` for architecture and tech vision.
   - "Объясни дроби простыми словами" — the bot explains fractions simply.
   - "Почему небо голубое?" — the bot answers and may ask a follow-up.
 - The bot adapts explanations to a child-friendly style and keeps short dialog history (up to 30 messages).
+- **Persistent sessions**: Your conversation history is saved and restored between bot restarts.
+- **Intelligent context**: The bot remembers your understanding level and adapts explanations accordingly.

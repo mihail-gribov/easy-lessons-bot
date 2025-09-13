@@ -8,8 +8,11 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      - DATABASE_PATH=/app/data/bot.db
     volumes:
       - ./log:/log
+      - ./data:/app/data
     ports:
       - "8001:8001"  # Expose port for health checks or API if needed
     healthcheck:
@@ -33,9 +36,12 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      - DATABASE_PATH=/app/data/bot.db
     volumes:
       - .:/app  # Mount source code for live reloading
       - ./log:/log
+      - ./data:/app/data
     ports:
       - "8001:8001"
     command: ["python", "-m", "app.main"]

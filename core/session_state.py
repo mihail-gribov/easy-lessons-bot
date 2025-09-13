@@ -1,7 +1,9 @@
-"""Session state management for in-memory user sessions."""
+"""Session state management with persistence support."""
 
 import logging
 from datetime import datetime, timedelta
+
+from core.persistence.session_adapter import get_persistence_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,55 @@ class SessionState:
             role,
             len(content),
         )
+
+    def to_dict(self) -> dict:
+        """Convert session state to dictionary for persistence."""
+        return {
+            "chat_id": str(self.chat_id),
+            "scenario": self.scenario,
+            "question": self.question,
+            "topic": self.topic,
+            "is_new_question": self.is_new_question,
+            "is_new_topic": self.is_new_topic,
+            "understanding_level": self.understanding_level,
+            "previous_understanding_level": self.previous_understanding_level,
+            "previous_topic": self.previous_topic,
+            "user_preferences": self.user_preferences,
+            "messages": [
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat(),
+                }
+                for msg in self.recent_messages
+            ],
+            "created_at": self.updated_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SessionState":
+        """Create session state from dictionary."""
+        session = cls(data["chat_id"])
+        session.scenario = data.get("scenario", "unknown")
+        session.question = data.get("question")
+        session.topic = data.get("topic")
+        session.is_new_question = data.get("is_new_question", False)
+        session.is_new_topic = data.get("is_new_topic", False)
+        session.understanding_level = data.get("understanding_level", 5)
+        session.previous_understanding_level = data.get("previous_understanding_level")
+        session.previous_topic = data.get("previous_topic")
+        session.user_preferences = data.get("user_preferences", [])
+
+        # Restore messages
+        messages_data = data.get("messages", [])
+        for msg_data in messages_data:
+            message = Message(msg_data["role"], msg_data["content"])
+            if "timestamp" in msg_data:
+                message.timestamp = datetime.fromisoformat(msg_data["timestamp"])
+            session.recent_messages.append(message)
+
+        return session
 
     def get_recent_messages(self, limit: int = 30) -> list[Message]:
         """
@@ -158,15 +209,16 @@ class SessionState:
 
 
 class SessionManager:
-    """Manages in-memory session states."""
+    """Manages session states with persistence support."""
 
     def __init__(self) -> None:
         """Initialize session manager."""
         self._sessions: dict[str | int, SessionState] = {}
+        self._persistence_adapter = get_persistence_adapter()
 
-    def get_session(self, chat_id: str | int) -> SessionState:
+    async def get_session(self, chat_id: str | int) -> SessionState:
         """
-        Get or create session for chat.
+        Get or create session for chat with persistence support.
 
         Args:
             chat_id: Telegram chat ID
@@ -174,11 +226,50 @@ class SessionManager:
         Returns:
             Session state
         """
-        if chat_id not in self._sessions:
-            self._sessions[chat_id] = SessionState(chat_id)
+        chat_id_str = str(chat_id)
+
+        # Try to load from persistence first
+        if chat_id_str not in self._sessions and self._persistence_adapter.is_available:
+            try:
+                session_data = await self._persistence_adapter.load_session_state(
+                    chat_id_str
+                )
+                if session_data:
+                    self._sessions[chat_id_str] = SessionState.from_dict(session_data)
+                    logger.info("Loaded session from persistence for chat %s", chat_id)
+                    return self._sessions[chat_id_str]
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "Failed to load session from persistence for %s: %s", chat_id, e
+                )
+
+        # Create new session if not found
+        if chat_id_str not in self._sessions:
+            self._sessions[chat_id_str] = SessionState(chat_id)
             logger.info("Created new session for chat %s", chat_id)
 
-        return self._sessions[chat_id]
+        return self._sessions[chat_id_str]
+
+    async def save_session(self, session: SessionState) -> None:
+        """
+        Save session to persistence.
+
+        Args:
+            session: Session state to save
+        """
+        if self._persistence_adapter.is_available:
+            try:
+                session_data = session.to_dict()
+                await self._persistence_adapter.save_session_state(session_data)
+                logger.debug(
+                    "Saved session to persistence for chat %s", session.chat_id
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "Failed to save session to persistence for %s: %s",
+                    session.chat_id,
+                    e,
+                )
 
     def remove_session(self, chat_id: str | int) -> None:
         """

@@ -54,6 +54,22 @@ class Settings(BaseSettings):
         le=100,
     )
 
+    # Database Configuration
+    database_enabled: bool = Field(
+        default=True,
+        description="Enable database persistence",
+    )
+    database_path: str = Field(
+        default="data/bot.db",
+        description="Path to SQLite database file",
+    )
+    database_cleanup_hours: int = Field(
+        default=168,  # 7 days
+        description="Hours after which to cleanup old sessions",
+        ge=1,
+        le=8760,  # 1 year
+    )
+
 
 # Global settings instance
 _settings: Settings | None = None

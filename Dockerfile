@@ -55,9 +55,9 @@ COPY bot/ bot/
 COPY core/ core/
 COPY settings/ settings/
 
-# Create non-root user and log directory
+# Create non-root user, log directory, and data directory
 RUN adduser --disabled-password --gecos '' appuser \
-    && mkdir -p /log \
+    && mkdir -p /log /app/data \
     && chown -R appuser:appuser /app /log
 
 USER appuser

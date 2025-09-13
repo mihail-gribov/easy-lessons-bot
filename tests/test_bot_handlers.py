@@ -105,7 +105,10 @@ class TestBotHandlers:
         ):
             # Mock session
             mock_session = MagicMock()
-            mock_session_manager.return_value.get_session.return_value = mock_session
+            mock_session_manager.return_value.get_session = AsyncMock(
+                return_value=mock_session
+            )
+            mock_session_manager.return_value.save_session = AsyncMock()
 
             # Mock prompt store
             mock_store = MagicMock()
@@ -158,7 +161,10 @@ class TestBotHandlers:
         ):
             # Mock session
             mock_session = MagicMock()
-            mock_session_manager.return_value.get_session.return_value = mock_session
+            mock_session_manager.return_value.get_session = AsyncMock(
+                return_value=mock_session
+            )
+            mock_session_manager.return_value.save_session = AsyncMock()
 
             # Mock prompt store
             mock_store = MagicMock()
@@ -222,7 +228,10 @@ class TestBotHandlers:
         ):
             # Mock session
             mock_session = MagicMock()
-            mock_session_manager.return_value.get_session.return_value = mock_session
+            mock_session_manager.return_value.get_session = AsyncMock(
+                return_value=mock_session
+            )
+            mock_session_manager.return_value.save_session = AsyncMock()
 
             # Mock prompt store
             mock_store = MagicMock()
@@ -312,7 +321,10 @@ class TestBotHandlers:
         ):
             # Mock session
             mock_session = MagicMock()
-            mock_session_manager.return_value.get_session.return_value = mock_session
+            mock_session_manager.return_value.get_session = AsyncMock(
+                return_value=mock_session
+            )
+            mock_session_manager.return_value.save_session = AsyncMock()
 
             # Mock prompt store
             mock_store = MagicMock()
@@ -369,7 +381,10 @@ class TestBotHandlers:
         ):
             # Mock session
             mock_session = MagicMock()
-            mock_session_manager.return_value.get_session.return_value = mock_session
+            mock_session_manager.return_value.get_session = AsyncMock(
+                return_value=mock_session
+            )
+            mock_session_manager.return_value.save_session = AsyncMock()
 
             # Mock prompt store
             mock_store = MagicMock()
@@ -414,7 +429,10 @@ class TestBotHandlers:
         ):
             # Mock session
             mock_session = MagicMock()
-            mock_session_manager.return_value.get_session.return_value = mock_session
+            mock_session_manager.return_value.get_session = AsyncMock(
+                return_value=mock_session
+            )
+            mock_session_manager.return_value.save_session = AsyncMock()
 
             # Mock prompt store
             mock_store = MagicMock()

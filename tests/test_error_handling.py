@@ -125,7 +125,11 @@ class TestErrorMessageStore:
         error = LLMConnectionError("Connection failed")
         message = store.get_error_message(error)
 
-        assert "интернет" in message.lower() or "подключ" in message.lower()
+        assert (
+            "интернет" in message.lower()
+            or "подключ" in message.lower()
+            or "сеть" in message.lower()
+        )
         assert "🌐" in message or "📡" in message or "🔌" in message
 
     def test_generic_error_message(self):

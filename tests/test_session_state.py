@@ -2,6 +2,8 @@
 
 from datetime import datetime, timedelta
 
+import pytest
+
 from core.session_state import (
     Message,
     SessionManager,
@@ -188,29 +190,32 @@ class TestSessionManager:
         """Set up test fixtures."""
         self.manager = SessionManager()
 
-    def test_get_session_new_session(self):
+    @pytest.mark.asyncio
+    async def test_get_session_new_session(self):
         """Test getting a new session."""
-        session = self.manager.get_session("new_chat_123")
+        session = await self.manager.get_session("new_chat_123")
 
         assert isinstance(session, SessionState)
         assert session.chat_id == "new_chat_123"
         assert "new_chat_123" in self.manager._sessions
 
-    def test_get_session_existing_session(self):
+    @pytest.mark.asyncio
+    async def test_get_session_existing_session(self):
         """Test getting an existing session."""
         # Create session first
-        session1 = self.manager.get_session("existing_chat")
+        session1 = await self.manager.get_session("existing_chat")
 
         # Get same session again
-        session2 = self.manager.get_session("existing_chat")
+        session2 = await self.manager.get_session("existing_chat")
 
         assert session1 is session2  # Same object
         assert len(self.manager._sessions) == 1
 
-    def test_remove_session(self):
+    @pytest.mark.asyncio
+    async def test_remove_session(self):
         """Test removing a session."""
         # Create session
-        self.manager.get_session("to_remove")
+        await self.manager.get_session("to_remove")
         assert "to_remove" in self.manager._sessions
 
         # Remove session
@@ -223,11 +228,12 @@ class TestSessionManager:
         self.manager.remove_session("nonexistent")
         assert "nonexistent" not in self.manager._sessions
 
-    def test_get_all_sessions(self):
+    @pytest.mark.asyncio
+    async def test_get_all_sessions(self):
         """Test getting all sessions."""
         # Create multiple sessions
-        session1 = self.manager.get_session("chat1")
-        session2 = self.manager.get_session("chat2")
+        session1 = await self.manager.get_session("chat1")
+        session2 = await self.manager.get_session("chat2")
 
         all_sessions = self.manager.get_all_sessions()
 
@@ -237,10 +243,11 @@ class TestSessionManager:
         assert all_sessions["chat1"] is session1
         assert all_sessions["chat2"] is session2
 
-    def test_cleanup_old_sessions(self):
+    @pytest.mark.asyncio
+    async def test_cleanup_old_sessions(self):
         """Test cleaning up old sessions."""
         # Create a session
-        session = self.manager.get_session("old_chat")
+        session = await self.manager.get_session("old_chat")
 
         # Manually set old timestamp
         session.updated_at = datetime.now() - timedelta(hours=25)
@@ -251,10 +258,11 @@ class TestSessionManager:
         assert removed_count == 1
         assert "old_chat" not in self.manager._sessions
 
-    def test_cleanup_old_sessions_none_to_remove(self):
+    @pytest.mark.asyncio
+    async def test_cleanup_old_sessions_none_to_remove(self):
         """Test cleanup when no sessions need removal."""
         # Create a recent session
-        self.manager.get_session("recent_chat")
+        await self.manager.get_session("recent_chat")
 
         # Cleanup sessions older than 24 hours
         removed_count = self.manager.cleanup_old_sessions(max_age_hours=24)
@@ -262,10 +270,11 @@ class TestSessionManager:
         assert removed_count == 0
         assert "recent_chat" in self.manager._sessions
 
-    def test_cleanup_old_sessions_custom_age(self):
+    @pytest.mark.asyncio
+    async def test_cleanup_old_sessions_custom_age(self):
         """Test cleanup with custom age limit."""
         # Create a session
-        session = self.manager.get_session("custom_age_chat")
+        session = await self.manager.get_session("custom_age_chat")
 
         # Set timestamp to 2 hours ago
         session.updated_at = datetime.now() - timedelta(hours=2)
@@ -288,12 +297,13 @@ class TestGlobalSessionManager:
         assert manager1 is manager2
         assert isinstance(manager1, SessionManager)
 
-    def test_global_session_manager_functionality(self):
+    @pytest.mark.asyncio
+    async def test_global_session_manager_functionality(self):
         """Test that global session manager works correctly."""
         manager = get_session_manager()
 
         # Create session through global manager
-        session = manager.get_session("global_test")
+        session = await manager.get_session("global_test")
 
         assert isinstance(session, SessionState)
         assert session.chat_id == "global_test"

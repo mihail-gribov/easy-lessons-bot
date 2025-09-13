@@ -47,7 +47,7 @@ async def handle_text_message(message: Message) -> None:
     try:
         # Get session state
         session_manager = get_session_manager()
-        session = session_manager.get_session(chat_id)
+        session = await session_manager.get_session(chat_id)
 
         # Add user message to session history
         session.add_message("user", user_text)
@@ -82,6 +82,9 @@ async def handle_text_message(message: Message) -> None:
 
         # Add bot response to session history
         session.add_message("assistant", response_text)
+
+        # Save session to persistence
+        await session_manager.save_session(session)
 
         # Send response to user
         await message.answer(response_text)

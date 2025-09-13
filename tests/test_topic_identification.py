@@ -160,7 +160,7 @@ class TestTopicIdentificationIntegration:
 
         # Create session with some history
         session_manager = get_session_manager()
-        session = session_manager.get_session("integration_test")
+        session = await session_manager.get_session("integration_test")
         session.add_message("user", "Привет!")
         session.add_message("assistant", "Привет! Чем могу помочь?")
 
@@ -192,7 +192,7 @@ class TestTopicIdentificationIntegration:
 
         # Create empty session
         session_manager = get_session_manager()
-        session = session_manager.get_session("empty_test")
+        session = await session_manager.get_session("empty_test")
 
         # Mock LLM response
         mock_llm_client = AsyncMock()
