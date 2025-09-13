@@ -5,7 +5,7 @@
 - Управление зависимостями и сборка: `uv`, `pyproject.toml`
 - Telegram-бот: `aiogram` 3, `asyncio`, режим long polling (MVP)
 - Работа с LLM: клиент `openai` с `base_url` OpenRouter; модель по умолчанию — `gpt-4o-mini`
-- Данные/состояние: in-memory структуры (`dict`/`list`), без БД
+- Данные/состояние: SQLite база данных с SQLAlchemy 2.0 (async/await), graceful degradation в in-memory при недоступности БД
 - Конфигурация: переменные окружения + `pydantic-settings`
 - Логирование: стандартный `logging` в файл `/log/app.log`, уровень INFO
 - Тестирование: `pytest`
@@ -29,15 +29,17 @@
   - `core/` — интеграция с LLM, управление подсказками, простая бизнес-логика
     - `core/llm_client.py` — клиент OpenRouter через `openai`
     - `core/prompt_store.py` — загрузка/выбор шаблонов подсказок
-    - `core/session_state.py` — in-memory состояние с ключом `chat_id`
+    - `core/session_state.py` — управление состоянием с персистентностью через SQLite
+    - `core/persistence/` — работа с SQLite, миграции, репозитории
     - `core/prompts/` — проектные промпты и шаблоны
   - `settings/` — конфигурация через `pydantic-settings`
   - `tests/` — unit-тесты для `core` и ключевых хэндлеров
   - `scripts/` — утилиты для локальной разработки и вспомогательных задач
   - `infra/` — инфраструктурные артефакты (напр., docker-compose, CI-конфигурации)
 - Файлы верхнего уровня: `pyproject.toml`, `Makefile`, `Dockerfile`, `README.md`
-- FSM `aiogram` на этапе MVP не используем: простое состояние в памяти (`dict`) по `chat_id`
+- FSM `aiogram` на этапе MVP не используем: состояние в SQLite с graceful degradation в память
 - Слой сервисов на текущем этапе не выделяем; плоские модули в `core/`
+- Персистентность: SQLite с автоматическими миграциями, Repository pattern для доступа к данным
 \n+- `Dockerfile` — базовый образ `python:3.12-slim`; установка `uv`; копирование `pyproject.toml` (и `uv.lock`, если появится) и установка зависимостей; затем копирование исходников (`app/`, `bot/`, `core/`, `settings/`); запуск `python -m app.main`; запуск от non-root пользователя
 - `Makefile` — основные цели:
   - `install`: установка зависимостей через `uv sync`
@@ -60,12 +62,23 @@ easy-lessons-bot/
 │   ├── llm_client.py
 │   ├── prompt_store.py
 │   ├── session_state.py
+│   ├── persistence/
+│   │   ├── database.py
+│   │   ├── models.py
+│   │   ├── repositories.py
+│   │   ├── session_adapter.py
+│   │   └── migrations/
+│   │       ├── manager.py
+│   │       └── versions/
+│   │           └── 001_initial_schema.py
 │   ├── prompts/
 │   │   └── ...
 │   └── __init__.py
 ├── settings/
 │   ├── config.py
 │   └── __init__.py
+├── data/
+│   └── bot.db
 ├── tests/
 │   └── ...
 ├── scripts/
@@ -74,7 +87,8 @@ easy-lessons-bot/
 │   └── ...
 ├── doc/
 │   ├── product_idea.md
-│   └── vision.md
+│   ├── vision.md
+│   └── persistence.md
 ├── pyproject.toml
 ├── Makefile
 ├── Dockerfile
@@ -85,15 +99,16 @@ easy-lessons-bot/
 - Слои:
   - `bot` — входной слой (`aiogram`), роутинг команд и текста, нормализация входа
   - `core` — сбор контекста, вызовы LLM, обновление состояния
+  - `core/persistence` — работа с SQLite, миграции, репозитории
   - `settings` — конфигурация через ENV (`pydantic-settings`)
   - `infra` — Docker/CI и вспомогательные скрипты
 
 - Поток обработки сообщения:
   1) Входящее сообщение → `bot/handlers.py` определяет: команда или свободный текст
-  2) `core/session_state` читает состояние пользователя по `chat_id`
+  2) `core/session_state` читает состояние из БД или создает новое
   3) `core/prompt_store` собирает системные подсказки и шаблон под задачу (объяснение/вопрос)
   4) `core/llm_client` вызывает OpenRouter через `openai` и возвращает ответ
-  5) `core/session_state` обновляет историю и уровень понимания (простая эвристика; расширим позже)
+  5) `core/session_state` обновляет историю и сохраняет в БД
   6) `bot` отправляет ответ пользователю
 
 - Команды и намерения:
@@ -122,12 +137,17 @@ graph LR
   B --> C["core"]
   C --> P["prompt_store"]
   C --> LLM["llm_client (OpenRouter via openai)"]
-  C --> S["session_state (in-memory)"]
+  C --> S["session_state (SQLite + graceful degradation)"]
+  C --> PA["persistence_adapter"]
+  PA --> SR["session_repository"]
+  SR --> DB["SQLite Database"]
   SET["settings (pydantic-settings)"] -.-> B
   SET -.-> C
+  SET -.-> PA
   LLM --> OR["OpenRouter"]
   LOG["logging → /log/app.log"] -.-> B
   LOG -.-> C
+  LOG -.-> PA
 ```
 
 #### Диаграмма последовательности
@@ -137,30 +157,54 @@ sequenceDiagram
   participant TG as Telegram API
   participant B as bot/handlers
   participant S as session_state
+  participant PA as persistence_adapter
+  participant SR as session_repository
+  participant DB as SQLite
   participant P as prompt_store
   participant L as llm_client
   participant OR as OpenRouter
 
   U->>TG: Сообщение
   TG->>B: Update (long polling)
-  B->>S: get(chat_id)
+  B->>PA: get_session(chat_id)
+  PA->>SR: load_session(chat_id)
+  SR->>DB: SELECT session
+  DB-->>SR: session_data
+  SR-->>PA: SessionState
+  PA-->>B: SessionState
   B->>P: build_prompt(system, topic, history)
   P-->>B: prompt
   B->>L: request(prompt, temperature, max_tokens)
   L->>OR: call model
   OR-->>L: response
   L-->>B: answer
-  B->>S: update(history, understanding)
+  B->>PA: save_session(session)
+  PA->>SR: save_session(session)
+  SR->>DB: INSERT/UPDATE session + messages
   B->>TG: send answer
 ```
 
 ### Модель данных
-- SessionState (in‑memory, ключ `chat_id`):
-  - `chat_id`: строка/число — идентификатор чата
-  - `active_topic`: строка | null — текущая тема (напр., "fractions", "electricity", "caesar")
-  - `understanding_level`: one of `low` | `medium` | `high`
-  - `recent_messages`: список последних N сообщений вида `{role: "user"|"bot", content: str}`
-  - `updated_at`: timestamp — время последнего обновления (опционально)
+- Sessions (SQLite, ключ `chat_id`):
+  - `chat_id`: TEXT PRIMARY KEY — идентификатор чата
+  - `scenario`: TEXT — текущий сценарий ("unknown", "discussion", "explanation")
+  - `question`: TEXT | null — текущий вопрос
+  - `topic`: TEXT | null — активная тема
+  - `is_new_question`: BOOLEAN — флаг нового вопроса
+  - `is_new_topic`: BOOLEAN — флаг новой темы
+  - `understanding_level`: INTEGER (0-9) — уровень понимания
+  - `previous_understanding_level`: INTEGER | null — предыдущий уровень
+  - `previous_topic`: TEXT | null — предыдущая тема
+  - `user_preferences`: TEXT — JSON массив предпочтений
+  - `created_at`: TIMESTAMP — время создания
+  - `updated_at`: TIMESTAMP — время обновления
+
+- Messages (SQLite, связь с sessions):
+  - `id`: INTEGER PRIMARY KEY — автоинкремент
+  - `chat_id`: TEXT — ссылка на сессию
+  - `role`: TEXT CHECK — "user" или "assistant"
+  - `content`: TEXT — содержимое сообщения
+  - `timestamp`: TIMESTAMP — время сообщения
 
 - Topics (справочник в коде):
   - перечисление/список поддерживаемых тем в `core/prompts/`
@@ -175,27 +219,31 @@ sequenceDiagram
 
 #### Диаграмма модели данных
 ```mermaid
-classDiagram
-  class SessionState {
-    chat_id: str|int
-    active_topic: str?
-    understanding_level: low|medium|high
-    recent_messages: List~Message~
-    updated_at: datetime?
-  }
-  class Message {
-    role: user|bot
-    content: str
-  }
-  class Settings {
-    TELEGRAM_BOT_TOKEN: str
-    OPENROUTER_API_KEY: str
-    OPENROUTER_MODEL: str = "gpt-4o-mini"
-    LLM_TEMPERATURE: float = 0.9
-    LLM_MAX_TOKENS: int = 6000
-    HISTORY_LIMIT: int = 30
-  }
-  SessionState "*" o-- "*" Message
+erDiagram
+    SESSIONS {
+        TEXT chat_id PK
+        TEXT scenario
+        TEXT question
+        TEXT topic
+        BOOLEAN is_new_question
+        BOOLEAN is_new_topic
+        INTEGER understanding_level
+        INTEGER previous_understanding_level
+        TEXT previous_topic
+        TEXT user_preferences
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+    
+    MESSAGES {
+        INTEGER id PK
+        TEXT chat_id FK
+        TEXT role
+        TEXT content
+        TIMESTAMP timestamp
+    }
+    
+    SESSIONS ||--o{ MESSAGES : "has many"
 ```
 
 ### Работа с LLM
@@ -225,6 +273,7 @@ classDiagram
 - Образ: один `Dockerfile` на базе `python:3.12-slim` (одностадийная сборка для MVP)
 - Установка зависимостей через `uv`; копирование исходников (`app/`, `bot/`, `core/`, `settings/`)
 - Логи: создание директории `/log`; запись логов в `/log/app.log` (эпhemeral внутри контейнера)
+- Данные: создание директории `/app/data`; SQLite база в `/app/data/bot.db` (персистентная через volume)
 - Запуск от non‑root пользователя; команда запуска: `python -m app.main`
 - Переменные окружения:
   - `TELEGRAM_BOT_TOKEN` (required)
@@ -233,6 +282,9 @@ classDiagram
   - `LLM_TEMPERATURE` (default: `0.9`)
   - `LLM_MAX_TOKENS` (default: `6000`)
   - `HISTORY_LIMIT` (default: `30`)
+  - `DATABASE_ENABLED` (default: `true`)
+  - `DATABASE_PATH` (default: `/app/data/bot.db`)
+  - `DATABASE_CLEANUP_HOURS` (default: `168`)
 - Оркестрация: локально `docker-compose`, без Kubernetes в MVP
 - Сетевые настройки: long polling, внешние ingress/прокси не требуются
 
@@ -244,18 +296,21 @@ graph TD
   subgraph C
     App["app/main.py + aiogram"]
     Log["/log/app.log"]
+    DB["/app/data/bot.db"]
   end
   User["Пользователь"] --> TG["Telegram"]
   TG --> App
   App --> OR["OpenRouter API"]
   App --> Log
+  App --> DB
 ```
 
 ### Подход к конфигурированию
 - Инструмент: `pydantic-settings`; загрузка из ENV, локально возможен `.env`
 - Приоритет: ENV > `.env` > значения по умолчанию
 - Обязательные переменные: `TELEGRAM_BOT_TOKEN`, `OPENROUTER_API_KEY`
-- Значения по умолчанию: как в разделе «Деплой» (`OPENROUTER_MODEL`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `HISTORY_LIMIT`)
+- Значения по умолчанию: как в разделе «Деплой» (`OPENROUTER_MODEL`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `HISTORY_LIMIT`, `DATABASE_ENABLED`, `DATABASE_PATH`, `DATABASE_CLEANUP_HOURS`)
+- Graceful degradation: при `DATABASE_ENABLED=false` работает только in-memory
 - Валидация при старте: при отсутствии обязательных значений — немедленный выход с понятным сообщением об ошибке
 - Загрузка конфига один раз при старте процесса; hot‑reload не требуется
 - Безопасность: секреты не логируем, в логах скрываем значения токенов
@@ -268,12 +323,13 @@ graph TD
 - Содержимое сообщений:
   - для входящих сообщений: `chat_id`, тип (команда/текст)
   - для LLM‑запросов: `duration_ms`, `prompt_tokens?`, `completion_tokens?` (если доступны)
+  - для БД операций: инициализация БД, операции с сессиями, миграции
   - для ошибок: трассировка исключений
 - Ротация/retention: вне приложения (Docker/окружение), в MVP без внутренней ротации
 - PII: не логируем чувствительные данные и секреты
 
 ### Мониторинг
-- Локально: логируем время ответа LLM, количество токенов (если доступно), статусы ошибок
+- Локально: логируем время ответа LLM, количество токенов (если доступно), время операций с БД, количество сессий, размер БД
 - Прод: без внешнего APM/мониторинга в MVP; используем логи
 - Канал логов: файл `/log/app.log`; ротация и объём — на уровне Docker/окружения
 - Корреляция: отдельный request_id не вводим; при необходимости ориентируемся на `chat_id` и время
