@@ -92,51 +92,52 @@
 - [x] Провести полное тестирование всех функций
 
 ## Итерация 14: Персистентность данных (SQLite)
+> **Контекст**: Детальная техническая спецификация в @persistence.md
 
 ### Этап 1: Базовая инфраструктура
-- [ ] Создать директорию `core/persistence/` и базовые файлы
+- [ ] Создать директорию `core/persistence/` и базовые файлы (структура в @persistence.md)
 - [ ] Добавить SQLAlchemy 2.0 в зависимости (pyproject.toml)
-- [ ] Создать `core/persistence/database.py` с DatabaseManager
+- [ ] Создать `core/persistence/database.py` с DatabaseManager (принципы в @persistence.md)
 - [ ] Реализовать подключение к SQLite с async/await
 - [ ] Протестировать создание и подключение к БД
 
 ### Этап 2: Модели данных
 - [ ] Создать `core/persistence/models.py` с SQLAlchemy моделями
-- [ ] Реализовать модель Sessions с полями из @persistence.md
-- [ ] Реализовать модель Messages с связью к Sessions
-- [ ] Реализовать модель Migrations для версионирования
+- [ ] Реализовать модель Sessions с полями: chat_id, scenario, question, topic, is_new_question, is_new_topic, understanding_level, previous_understanding_level, previous_topic, user_preferences, created_at, updated_at (схема в @persistence.md)
+- [ ] Реализовать модель Messages с связью к Sessions (схема в @persistence.md)
+- [ ] Реализовать модель Migrations для версионирования (схема в @persistence.md)
 - [ ] Протестировать создание таблиц
 
 ### Этап 3: Система миграций
 - [ ] Создать `core/persistence/migrations/manager.py`
-- [ ] Реализовать MigrationManager с автоматическим применением
+- [ ] Реализовать MigrationManager с автоматическим применением (система в @persistence.md)
 - [ ] Создать `core/persistence/migrations/versions/001_initial_schema.py`
 - [ ] Добавить отслеживание примененных миграций
 - [ ] Протестировать применение миграций при старте
 
 ### Этап 4: Repository слой
 - [ ] Создать `core/persistence/repositories.py`
-- [ ] Реализовать SessionRepository для CRUD операций
+- [ ] Реализовать SessionRepository для CRUD операций (Repository pattern в @persistence.md)
 - [ ] Добавить методы загрузки и сохранения сессий
 - [ ] Реализовать операции с сообщениями
 - [ ] Протестировать все операции с данными
 
 ### Этап 5: Интеграция с существующим кодом
 - [ ] Создать `core/persistence/session_adapter.py`
-- [ ] Реализовать PersistenceAdapter для интеграции с SessionManager
+- [ ] Реализовать PersistenceAdapter для интеграции с SessionManager (архитектура в @persistence.md)
 - [ ] Обновить `core/session_state.py` для работы с персистентностью
-- [ ] Добавить graceful degradation при недоступности БД
+- [ ] Добавить graceful degradation при недоступности БД (принципы в @persistence.md)
 - [ ] Протестировать совместимость с существующим кодом
 
 ### Этап 6: Конфигурация и настройки
-- [ ] Обновить `settings/config.py` с новыми переменными БД
+- [ ] Обновить `settings/config.py` с новыми переменными БД (переменные в @persistence.md)
 - [ ] Добавить DATABASE_ENABLED, DATABASE_PATH, DATABASE_CLEANUP_HOURS
 - [ ] Реализовать валидацию настроек БД
 - [ ] Обновить .env.example с примерами переменных
 - [ ] Протестировать загрузку конфигурации
 
 ### Этап 7: Docker интеграция
-- [ ] Обновить Dockerfile для создания директории /app/data
+- [ ] Обновить Dockerfile для создания директории /app/data (деплой в @persistence.md)
 - [ ] Обновить docker-compose.yml с volume для данных
 - [ ] Добавить переменные окружения для БД в docker-compose
 - [ ] Протестировать запуск в контейнере с персистентностью

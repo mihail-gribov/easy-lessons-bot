@@ -15,17 +15,73 @@ A Telegram bot for simple, friendly explanations powered by an LLM (OpenRouter v
 - `uv` for dependency management
 - Telegram bot token and OpenRouter API key
 
-## Quickstart (local)
-1. Install Python 3.12 and `uv`.
-2. Install deps:
+## Installation
+
+### Method 1: From Repository (Recommended)
+
+1. **Clone the repository:**
    ```bash
+   git clone https://github.com/yourusername/easy-lessons-bot.git
+   cd easy-lessons-bot
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   # Install Python 3.12 and uv if not already installed
+   # Then install project dependencies
    uv sync
    ```
-3. Configure environment:
-   - Create `.env` with variables below
-4. Run bot:
+
+3. **Configure environment:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your tokens (see Environment variables section)
+   ```
+
+4. **Run the bot:**
    ```bash
    make run
+   ```
+
+### Method 2: Docker Only
+
+1. **Create a directory for the bot:**
+   ```bash
+   mkdir ~/easy-lessons-bot
+   cd ~/easy-lessons-bot
+   ```
+
+2. **Create environment file:**
+   ```bash
+   cat > .env << 'EOF'
+   TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+   OPENROUTER_API_KEY=your_openrouter_api_key_here
+   EOF
+   ```
+
+3. **Edit the .env file:**
+   Open `.env` in your text editor and replace the placeholder values with your actual tokens:
+   - Get Telegram Bot Token from [@BotFather](https://t.me/BotFather)
+   - Get OpenRouter API Key from [OpenRouter](https://openrouter.ai/)
+
+4. **Run the bot:**
+   ```bash
+   docker pull yourusername/easy-lessons-bot:latest
+   docker run -d \
+     --name easy-lessons-bot \
+     --env-file .env \
+     -p 8001:8001 \
+     -v ./log:/log \
+     yourusername/easy-lessons-bot:latest
+   ```
+
+5. **Check if it's working:**
+   ```bash
+   # View logs
+   docker logs -f easy-lessons-bot
+   
+   # Check status
+   docker ps
    ```
 
 ## Environment variables
