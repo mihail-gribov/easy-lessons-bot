@@ -1,6 +1,11 @@
 # Dockerfile for Easy Lessons Bot (MVP)
 # Multi-stage build for optimized production image
 
+# Build arguments for version metadata
+ARG VERSION=unknown
+ARG GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
+
 # Build stage
 FROM python:3.12-slim AS builder
 
@@ -33,6 +38,16 @@ RUN uv sync --frozen --no-dev \
 # Runtime stage
 FROM python:3.12-slim AS runtime
 
+# Re-declare build args for runtime stage
+ARG VERSION=unknown
+ARG GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
+
+# Set environment variables from build args
+ENV VERSION=$VERSION
+ENV GIT_COMMIT=$GIT_COMMIT
+ENV BUILD_DATE=$BUILD_DATE
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV=/app/.venv \
@@ -54,6 +69,7 @@ COPY app/ app/
 COPY bot/ bot/
 COPY core/ core/
 COPY settings/ settings/
+COPY scripts/ scripts/
 
 # Create non-root user, log directory, and data directory
 RUN adduser --disabled-password --gecos '' appuser \
@@ -62,9 +78,18 @@ RUN adduser --disabled-password --gecos '' appuser \
 
 USER appuser
 
+# Add version metadata as labels
+LABEL org.opencontainers.image.title="Easy Lessons Bot" \
+      org.opencontainers.image.description="Telegram bot for easy learning with LLM" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.revision="$GIT_COMMIT" \
+      org.opencontainers.image.created="$BUILD_DATE" \
+      org.opencontainers.image.source="https://github.com/your-org/easy-lessons-bot" \
+      org.opencontainers.image.vendor="Easy Lessons Bot Team"
+
 # Health check to monitor bot status
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)" || exit 1
+    CMD python scripts/health_check.py || exit 1
 
 # Default command runs the bot
 CMD ["python", "-m", "app.main"]

@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Получаем всю историю для git describe
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+    
+    - name: Install dependencies
+      run: uv sync
+    
+    - name: Run tests
+      run: uv run pytest
+    
+    - name: Run linting
+      run: uv run ruff check .
+    
+    - name: Extract version
+      id: version
+      run: |
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION=${GITHUB_REF#refs/tags/v}
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extracted version: $VERSION"
+    
+    - name: Build Docker image
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        GIT_COMMIT=$(git rev-parse --short HEAD)
+        BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        
+        docker build \
+          --build-arg VERSION="$VERSION" \
+          --build-arg GIT_COMMIT="$GIT_COMMIT" \
+          --build-arg BUILD_DATE="$BUILD_DATE" \
+          -t easy-lessons-bot:$VERSION \
+          -t easy-lessons-bot:latest .
+    
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        release_name: Release v${{ steps.version.outputs.version }}
+        body: |
+          ## Changes in v${{ steps.version.outputs.version }}
+          
+          ### Docker Image
+          - **Version**: ${{ steps.version.outputs.version }}
+          - **Git Commit**: $(git rev-parse --short HEAD)
+          - **Build Date**: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          ### Usage
+          ```bash
+          docker run -e TELEGRAM_BOT_TOKEN=your_token -e OPENROUTER_API_KEY=your_key easy-lessons-bot:${{ steps.version.outputs.version }}
+          ```
+        draft: false
+        prerelease: false
+

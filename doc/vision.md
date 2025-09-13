@@ -20,7 +20,7 @@
 - Комментарии в коде: только на английском языке
 - Качество и CI: pre-commit с `ruff` (lint + format) и запуском `pytest`; сборка падает при нарушениях
 - Code review: без обязательного ревью в MVP (добавим позже при росте команды)
-- Версионирование: semver; релизы по git-тегам — после MVP
+- Версионирование: semver с автоматическим управлением версиями; релизы по git-тегам с CI/CD
 
 ### Структура проекта
 - Точка входа: `app/main.py` — инициализация бота, конфигурации и зависимостей
@@ -35,9 +35,12 @@
     - `core/welcome_messages/` — разнообразные приветственные сообщения
     - `core/persistence/` — работа с SQLite, миграции, репозитории
     - `core/prompts/` — проектные промпты и шаблоны
+    - `core/version_info.py` — утилиты для получения информации о версии, git commit hash и ветке
   - `settings/` — конфигурация через `pydantic-settings`
   - `tests/` — unit-тесты для `core` и ключевых хэндлеров
   - `scripts/` — утилиты для локальной разработки и вспомогательных задач
+    - `scripts/bump_version.py` — автоматическое обновление версии в pyproject.toml
+    - `scripts/health_check.py` — health check с информацией о версии
   - `infra/` — инфраструктурные артефакты (напр., docker-compose, CI-конфигурации)
 - Файлы верхнего уровня: `pyproject.toml`, `Makefile`, `Dockerfile`, `README.md`
 - FSM `aiogram` на этапе MVP не используем: состояние в SQLite с graceful degradation в память
@@ -51,7 +54,11 @@
   - `test`: `pytest -q`
   - `run`: локальный запуск `uv run python -m app.main`
   - `docker-build`: `docker build -t easy-lessons-bot:local .`
+  - `docker-build-version`: сборка Docker образа с метаданными версии
   - `docker-run`: запуск контейнера с `TELEGRAM_BOT_TOKEN`, `OPENROUTER_API_KEY` в ENV
+  - `bump-patch/minor/major`: автоматическое обновление версии
+  - `create-tag`: создание git тега для текущей версии
+  - `release`: полный цикл релиза (bump + tag + push)
 
 #### Дерево проекта (ASCII)
 ```
@@ -88,6 +95,7 @@ easy-lessons-bot/
 │   │   │   ├── system_explanation.txt
 │   │   │   └── system_unknown.txt
 │   │   └── ...
+│   ├── version_info.py
 │   └── __init__.py
 ├── settings/
 │   ├── config.py
@@ -97,6 +105,8 @@ easy-lessons-bot/
 ├── tests/
 │   └── ...
 ├── scripts/
+│   ├── bump_version.py
+│   ├── health_check.py
 │   └── ...
 ├── infra/
 │   └── ...
@@ -130,6 +140,7 @@ easy-lessons-bot/
 
 - Команды и намерения:
   - `/start` — приветствие и краткая инструкция
+  - `/version` — информация о версии бота (версия, git commit, ветка, Python версия)
   - «Новая тема» — сброс текущего контекста и установка активной темы
   - Иное — свободный вопрос с объяснением простым языком и обратным уточнением
 
@@ -145,6 +156,7 @@ easy-lessons-bot/
 
 - Точки расширения (после MVP):
   - FSM `aiogram` (сценарии), выделение сервисного слоя, мини‑викторины, расширенная оценка понимания, типизированные ответы LLM
+  - Расширенная система версионирования: автоматические changelog, интеграция с issue tracker, версионирование API
 
 #### Диаграмма компонентов
 ```mermaid
@@ -156,6 +168,7 @@ graph LR
   C --> LLM["llm_client (OpenRouter via openai)"]
   C --> S["session_state (SQLite + graceful degradation)"]
   C --> PA["persistence_adapter"]
+  C --> VI["version_info"]
   PA --> SR["session_repository"]
   SR --> DB["SQLite Database"]
   SET["settings (pydantic-settings)"] -.-> B
@@ -165,6 +178,7 @@ graph LR
   LOG["logging → /log/app.log"] -.-> B
   LOG -.-> C
   LOG -.-> PA
+  LOG -.-> VI
 ```
 
 #### Диаграмма последовательности
@@ -180,6 +194,7 @@ sequenceDiagram
   participant P as prompt_store
   participant L as llm_client
   participant OR as OpenRouter
+  participant VI as version_info
 
   U->>TG: Сообщение
   TG->>B: Update (long polling)
@@ -199,6 +214,8 @@ sequenceDiagram
   PA->>SR: save_session(session)
   SR->>DB: INSERT/UPDATE session + messages
   B->>TG: send answer
+  
+  Note over VI: Version info available<br/>for /version command<br/>and health checks
 ```
 
 ### Модель данных
@@ -314,10 +331,12 @@ erDiagram
 
 ### Деплой
 - Образ: один `Dockerfile` на базе `python:3.12-slim` (одностадийная сборка для MVP)
-- Установка зависимостей через `uv`; копирование исходников (`app/`, `bot/`, `core/`, `settings/`)
+- Установка зависимостей через `uv`; копирование исходников (`app/`, `bot/`, `core/`, `settings/`, `scripts/`)
 - Логи: создание директории `/log`; запись логов в `/log/app.log` (эпhemeral внутри контейнера)
 - Данные: создание директории `/app/data`; SQLite база в `/app/data/bot.db` (персистентная через volume)
 - Запуск от non‑root пользователя; команда запуска: `python -m app.main`
+- Версионирование: Docker образы содержат метаданные версии (версия, git commit, дата сборки)
+- Health check: встроенный health check с информацией о версии
 - Переменные окружения (полный список в @persistence.md):
   - `TELEGRAM_BOT_TOKEN` (required)
   - `OPENROUTER_API_KEY` (required)
@@ -340,12 +359,17 @@ graph TD
     App["app/main.py + aiogram"]
     Log["/log/app.log"]
     DB["/app/data/bot.db"]
+    HC["health_check.py"]
+    VI["version_info.py"]
   end
   User["Пользователь"] --> TG["Telegram"]
   TG --> App
   App --> OR["OpenRouter API"]
   App --> Log
   App --> DB
+  App --> VI
+  HC --> VI
+  HC --> DB
 ```
 
 ### Подход к конфигурированию
@@ -368,6 +392,7 @@ graph TD
   - для LLM‑запросов: `duration_ms`, `prompt_tokens?`, `completion_tokens?` (если доступны)
   - для БД операций: инициализация БД, операции с сессиями, миграции
   - для ошибок: трассировка исключений
+  - для версионирования: информация о версии при запуске (версия, git commit, ветка, Python версия)
 - Ротация/retention: вне приложения (Docker/окружение), в MVP без внутренней ротации
 - PII: не логируем чувствительные данные и секреты
 
@@ -376,4 +401,35 @@ graph TD
 - Прод: без внешнего APM/мониторинга в MVP; используем логи
 - Канал логов: файл `/log/app.log`; ротация и объём — на уровне Docker/окружения
 - Корреляция: отдельный request_id не вводим; при необходимости ориентируемся на `chat_id` и время
+- Версионирование: health check с информацией о версии; команда `/version` в Telegram для пользователей
+
+### Система версионирования
+- **Стандарт**: Semantic Versioning (semver) — MAJOR.MINOR.PATCH
+- **Автоматизация**: git hooks для автоматического обновления версий при коммитах
+- **CI/CD**: GitHub Actions для создания релизов и тегов
+- **Docker**: метаданные версии в образах (версия, git commit, дата сборки)
+- **Мониторинг**: информация о версии в логах и health check
+
+#### Компоненты версионирования:
+- **`core/version_info.py`** — утилиты для получения информации о версии, git commit hash и ветке
+- **`scripts/bump_version.py`** — автоматическое обновление версии в pyproject.toml
+- **`scripts/health_check.py`** — health check с информацией о версии
+- **Git hooks** — автоматическое обновление версий при коммитах
+- **GitHub Actions** — CI/CD с автоматическими релизами
+
+#### Автоматическое версионирование:
+- **Patch версия** (0.1.0 → 0.1.1) — автоматически при изменениях в коде
+- **Minor версия** (0.1.0 → 0.2.0) — при коммитах с `feat:` или `feature:`
+- **Major версия** (0.1.0 → 1.0.0) — при коммитах с `BREAKING CHANGE:` или `!`
+
+#### Команды управления версиями:
+- `make bump-patch/minor/major` — ручное обновление версии
+- `make create-tag` — создание git тега
+- `make release` — полный цикл релиза (bump + tag + push)
+- `make docker-build-version` — сборка Docker образа с метаданными
+
+#### Интеграция с пользователями:
+- **Команда `/version`** — получение информации о версии бота через Telegram
+- **Логи запуска** — отображение версии при старте бота
+- **Health check** — информация о версии в мониторинге
 

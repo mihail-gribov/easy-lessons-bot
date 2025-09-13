@@ -25,7 +25,7 @@ class SessionRepository:
             return None
 
         try:
-            async with self.db_manager.get_session() as session:
+            async for session in self.db_manager.get_session():
                 result = await session.execute(
                     select(Session).where(Session.chat_id == chat_id)
                 )
@@ -41,7 +41,7 @@ class SessionRepository:
             return False
 
         try:
-            async with self.db_manager.get_session() as session:
+            async for session in self.db_manager.get_session():
                 # Check if session exists
                 existing = await session.execute(
                     select(Session).where(Session.chat_id == session_data["chat_id"])
@@ -72,7 +72,7 @@ class SessionRepository:
             return False
 
         try:
-            async with self.db_manager.get_session() as session:
+            async for session in self.db_manager.get_session():
                 result = await session.execute(
                     select(Session).where(Session.chat_id == chat_id)
                 )
@@ -98,7 +98,7 @@ class SessionRepository:
             cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
             deleted_count = 0
 
-            async with self.db_manager.get_session() as session:
+            async for session in self.db_manager.get_session():
                 # Get old sessions
                 result = await session.execute(
                     select(Session).where(Session.updated_at < cutoff_time)
@@ -132,7 +132,7 @@ class MessageRepository:
             return False
 
         try:
-            async with self.db_manager.get_session() as session:
+            async for session in self.db_manager.get_session():
                 message = Message(
                     chat_id=chat_id,
                     role=role,
@@ -153,7 +153,7 @@ class MessageRepository:
             return []
 
         try:
-            async with self.db_manager.get_session() as session:
+            async for session in self.db_manager.get_session():
                 result = await session.execute(
                     select(Message)
                     .where(Message.chat_id == chat_id)
@@ -175,7 +175,7 @@ class MessageRepository:
             return 0
 
         try:
-            async with self.db_manager.get_session() as session:
+            async for session in self.db_manager.get_session():
                 result = await session.execute(
                     select(Message).where(Message.chat_id == chat_id)
                 )
@@ -191,7 +191,7 @@ class MessageRepository:
             return False
 
         try:
-            async with self.db_manager.get_session() as session:
+            async for session in self.db_manager.get_session():
                 await session.execute(select(Message).where(Message.chat_id == chat_id))
                 result = await session.execute(
                     select(Message).where(Message.chat_id == chat_id)

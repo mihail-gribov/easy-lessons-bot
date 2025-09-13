@@ -12,6 +12,7 @@ from core.llm_client import LLMError, get_llm_client
 from core.prompt_store import get_prompt_store
 from core.readiness.checker import check_bot_readiness
 from core.session_state import get_session_manager
+from core.version_info import format_version_info
 from core.welcome_messages import get_random_welcome_message
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,24 @@ async def start_command(message: Message) -> None:
     welcome_text = get_random_welcome_message()
     await message.answer(welcome_text)
     logger.info("Sent welcome message to user %s", message.from_user.id)
+
+
+@router.message(Command("version"))
+async def version_command(message: Message) -> None:
+    """Handle /version command."""
+    logger.info("Received /version command from user %s", message.from_user.id)
+
+    try:
+        version_info = format_version_info()
+        response = (
+            f"🤖 <b>Easy Lessons Bot</b>\n\n"
+            f"📊 <b>Информация о версии:</b>\n<code>{version_info}</code>"
+        )
+        await message.answer(response, parse_mode="HTML")
+        logger.info("Sent version info to user %s", message.from_user.id)
+    except Exception:
+        logger.exception("Error getting version info for user %s", message.from_user.id)
+        await message.answer("❌ Не удалось получить информацию о версии.")
 
 
 @router.message()

@@ -81,4 +81,4 @@ docker-compose*.yml
 .circleci/
 
 # Scripts (except production ones)
-scripts/
+scripts/test_prompts.py

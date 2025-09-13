@@ -11,6 +11,9 @@ from aiogram.enums import ParseMode
 from bot.handlers import router
 from core.logging_config import setup_logging
 from core.persistence import close_database, initialize_database, initialize_migrations
+
+# Import version utilities
+from core.version_info import format_version_info
 from settings.config import get_settings
 
 
@@ -21,6 +24,7 @@ async def main() -> None:
     logger = logging.getLogger(__name__)
 
     logger.info("Easy Lessons Bot starting up...")
+    logger.info("Bot info: %s", format_version_info())
     logger.info("Logging configured successfully")
 
     # Load configuration
