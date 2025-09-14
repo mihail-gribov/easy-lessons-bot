@@ -11,6 +11,7 @@ from aiogram.enums import ParseMode
 from bot.handlers import initialize_media_handlers, router
 from core.logging_config import setup_logging
 from core.persistence import close_database, initialize_database, initialize_migrations
+from core.service_registry import initialize_services
 
 # Import version utilities
 from core.version_info import format_version_info
@@ -39,6 +40,14 @@ async def main() -> None:
     except ValueError:
         logger.exception("Failed to load configuration")
         logger.exception("Please check your environment variables or .env file")
+        sys.exit(1)
+
+    # Initialize services in DI container
+    try:
+        initialize_services()
+        logger.info("Services initialized in DI container successfully")
+    except Exception:
+        logger.exception("Failed to initialize services")
         sys.exit(1)
 
     # Initialize database and migrations

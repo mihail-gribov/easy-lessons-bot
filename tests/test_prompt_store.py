@@ -15,12 +15,13 @@ class TestPromptStore:
     def test_prompt_store_initialization(self):
         """Test that prompt store initializes correctly."""
         assert self.prompt_store is not None
-        assert hasattr(self.prompt_store, "_system_prompts")
-        assert isinstance(self.prompt_store._system_prompts, dict)
+        assert hasattr(self.prompt_store, "_prompt_loader")
+        assert hasattr(self.prompt_store, "_context_analyzer")
+        assert hasattr(self.prompt_store, "_dialog_builder")
 
     def test_load_system_prompts(self):
         """Test loading system prompts."""
-        prompts = self.prompt_store._system_prompts
+        prompts = self.prompt_store._prompt_loader.get_all_system_prompts()
 
         # Should have at least the basic prompt
         assert "system_base" in prompts
@@ -96,19 +97,23 @@ class TestPromptStore:
         """Test understanding level context generation."""
         # Test all levels
         for level in ["low", "medium", "high"]:
-            context = self.prompt_store._get_understanding_context(level)
+            context = self.prompt_store._dialog_builder._get_understanding_context(
+                level, self.prompt_store._prompt_loader
+            )
             assert isinstance(context, str)
             assert len(context) > 0
 
         # Test invalid level (should return medium)
-        context = self.prompt_store._get_understanding_context("invalid")
+        context = self.prompt_store._dialog_builder._get_understanding_context(
+            "invalid", self.prompt_store._prompt_loader
+        )
         assert isinstance(context, str)
         assert len(context) > 0
 
     def test_build_topic_context(self):
         """Test topic context building."""
         topic = "mathematics"
-        context = self.prompt_store._build_topic_context(topic)
+        context = self.prompt_store._dialog_builder._build_topic_context(topic)
 
         assert isinstance(context, str)
         assert len(context) > 0
