@@ -11,12 +11,16 @@ from core.readiness.checker import check_bot_readiness
 from core.version_info import format_version_info
 from core.welcome_messages import get_random_welcome_message
 from core.message_processor import get_unified_processor
+from core.formatting.telegram_formatter import TelegramFormatter
 from bot.media_handlers import MediaHandlers
 
 logger = logging.getLogger(__name__)
 
 # Create router for handlers
 router = Router()
+
+# Initialize formatter
+telegram_formatter = TelegramFormatter()
 
 
 @router.message(Command("start"))
@@ -66,8 +70,16 @@ async def handle_text_message(message: Message) -> None:
     response_text = await processor.process_message(message, "text")
     
     if response_text:
-        await message.answer(response_text)
-        logger.info("Sent LLM response to user %s", chat_id)
+        # Apply Telegram formatting
+        formatted_text = telegram_formatter.format_message(response_text)
+        
+        try:
+            await message.answer(formatted_text, parse_mode="HTML")
+            logger.info("Sent formatted LLM response to user %s", chat_id)
+        except Exception as e:
+            # Fallback to plain text if HTML parsing fails
+            logger.warning("HTML formatting failed, sending plain text: %s", e)
+            await message.answer(response_text)
     else:
         await message.answer("Извините, произошла ошибка при обработке сообщения.")
 
@@ -98,8 +110,16 @@ async def handle_voice_message(message: Message) -> None:
     response_text = await processor.process_message(message, "voice")
     
     if response_text:
-        await message.answer(response_text)
-        logger.info("Sent voice response to user %s", chat_id)
+        # Apply Telegram formatting
+        formatted_text = telegram_formatter.format_message(response_text)
+        
+        try:
+            await message.answer(formatted_text, parse_mode="HTML")
+            logger.info("Sent formatted voice response to user %s", chat_id)
+        except Exception as e:
+            # Fallback to plain text if HTML parsing fails
+            logger.warning("HTML formatting failed for voice message, sending plain text: %s", e)
+            await message.answer(response_text)
     else:
         await message.answer("Извините, не удалось обработать голосовое сообщение.")
 
@@ -115,8 +135,16 @@ async def handle_photo_message(message: Message) -> None:
     response_text = await processor.process_message(message, "photo")
     
     if response_text:
-        await message.answer(response_text)
-        logger.info("Sent photo response to user %s", chat_id)
+        # Apply Telegram formatting
+        formatted_text = telegram_formatter.format_message(response_text)
+        
+        try:
+            await message.answer(formatted_text, parse_mode="HTML")
+            logger.info("Sent formatted photo response to user %s", chat_id)
+        except Exception as e:
+            # Fallback to plain text if HTML parsing fails
+            logger.warning("HTML formatting failed for photo message, sending plain text: %s", e)
+            await message.answer(response_text)
     else:
         await message.answer("Извините, не удалось обработать изображение.")
 
@@ -132,8 +160,16 @@ async def handle_document_message(message: Message) -> None:
     response_text = await processor.process_message(message, "document")
     
     if response_text:
-        await message.answer(response_text)
-        logger.info("Sent document response to user %s", chat_id)
+        # Apply Telegram formatting
+        formatted_text = telegram_formatter.format_message(response_text)
+        
+        try:
+            await message.answer(formatted_text, parse_mode="HTML")
+            logger.info("Sent formatted document response to user %s", chat_id)
+        except Exception as e:
+            # Fallback to plain text if HTML parsing fails
+            logger.warning("HTML formatting failed for document message, sending plain text: %s", e)
+            await message.answer(response_text)
     else:
         await message.answer("Извините, не удалось обработать документ.")
 

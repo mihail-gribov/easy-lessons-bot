@@ -118,6 +118,36 @@ class Settings(BaseSettings):
         description="Directory for temporary media files",
     )
 
+    # Message Formatting Configuration
+    enable_html_formatting: bool = Field(
+        default=True,
+        description="Enable HTML formatting for Telegram messages",
+    )
+    formatting_fallback_to_plain: bool = Field(
+        default=True,
+        description="Fallback to plain text if HTML formatting fails",
+    )
+    max_formatting_time_ms: int = Field(
+        default=100,
+        description="Maximum time allowed for formatting in milliseconds",
+        ge=1,
+        le=1000,
+    )
+    
+    # Educational Formatting Preferences
+    use_mathematical_unicode: bool = Field(
+        default=True,
+        description="Use Unicode symbols for mathematical expressions",
+    )
+    use_educational_emojis: bool = Field(
+        default=True,
+        description="Use emojis in educational content formatting",
+    )
+    default_content_type: str = Field(
+        default="general",
+        description="Default content type for formatting",
+    )
+
 
 # Global settings instance
 _settings: Settings | None = None
