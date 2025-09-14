@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import desc, select
 
 from core.persistence.database import get_database_manager
-from core.persistence.models import Message, Session
+from core.persistence.models import MediaFile, Message, Session
 
 logger = logging.getLogger(__name__)
 
@@ -209,9 +209,170 @@ class MessageRepository:
             return False
 
 
+class MediaFileRepository:
+    """Repository for media file operations."""
+
+    def __init__(self) -> None:
+        """Initialize media file repository."""
+        self.db_manager = get_database_manager()
+
+    async def add_media_file(
+        self,
+        chat_id: str,
+        file_id: str,
+        file_type: str,
+        content_type: str,
+        analysis_result: str,
+        context_match: bool = False,
+    ) -> bool:
+        """Add media file record."""
+        if not self.db_manager.is_available:
+            return False
+
+        try:
+            async for session in self.db_manager.get_session():
+                media_file = MediaFile(
+                    chat_id=chat_id,
+                    file_id=file_id,
+                    file_type=file_type,
+                    content_type=content_type,
+                    analysis_result=analysis_result,
+                    context_match=context_match,
+                    processed_at=datetime.now(UTC),
+                    created_at=datetime.now(UTC),
+                )
+                session.add(media_file)
+                await session.commit()
+                return True
+
+        except Exception:
+            logger.exception("Failed to add media file for %s", chat_id)
+            return False
+
+    async def get_media_files(
+        self, chat_id: str, file_type: str | None = None, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Get media files for session."""
+        if not self.db_manager.is_available:
+            return []
+
+        try:
+            async for session in self.db_manager.get_session():
+                query = select(MediaFile).where(MediaFile.chat_id == chat_id)
+                
+                if file_type:
+                    query = query.where(MediaFile.file_type == file_type)
+                
+                query = query.order_by(desc(MediaFile.processed_at)).limit(limit)
+                
+                result = await session.execute(query)
+                media_files = result.scalars().all()
+
+                return [media_file.to_dict() for media_file in media_files]
+
+        except Exception:
+            logger.exception("Failed to get media files for %s", chat_id)
+            return []
+
+    async def get_media_file_by_id(self, media_id: int) -> dict[str, Any] | None:
+        """Get media file by ID."""
+        if not self.db_manager.is_available:
+            return None
+
+        try:
+            async for session in self.db_manager.get_session():
+                result = await session.execute(
+                    select(MediaFile).where(MediaFile.id == media_id)
+                )
+                media_file = result.scalar_one_or_none()
+                
+                return media_file.to_dict() if media_file else None
+
+        except Exception:
+            logger.exception("Failed to get media file %d", media_id)
+            return None
+
+    async def update_media_file(
+        self, media_id: int, analysis_result: str, context_match: bool
+    ) -> bool:
+        """Update media file analysis results."""
+        if not self.db_manager.is_available:
+            return False
+
+        try:
+            async for session in self.db_manager.get_session():
+                result = await session.execute(
+                    select(MediaFile).where(MediaFile.id == media_id)
+                )
+                media_file = result.scalar_one_or_none()
+
+                if media_file:
+                    media_file.analysis_result = analysis_result
+                    media_file.context_match = context_match
+                    media_file.processed_at = datetime.now(UTC)
+                    await session.commit()
+                    return True
+
+                return False
+
+        except Exception:
+            logger.exception("Failed to update media file %d", media_id)
+            return False
+
+    async def delete_media_files(self, chat_id: str) -> bool:
+        """Delete all media files for session."""
+        if not self.db_manager.is_available:
+            return False
+
+        try:
+            async for session in self.db_manager.get_session():
+                result = await session.execute(
+                    select(MediaFile).where(MediaFile.chat_id == chat_id)
+                )
+                media_files = result.scalars().all()
+
+                for media_file in media_files:
+                    await session.delete(media_file)
+
+                await session.commit()
+                return True
+
+        except Exception:
+            logger.exception("Failed to delete media files for %s", chat_id)
+            return False
+
+    async def cleanup_old_media_files(self, hours: int = 168) -> int:
+        """Clean up media files older than specified hours."""
+        if not self.db_manager.is_available:
+            return 0
+
+        try:
+            cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
+            deleted_count = 0
+
+            async for session in self.db_manager.get_session():
+                result = await session.execute(
+                    select(MediaFile).where(MediaFile.processed_at < cutoff_time)
+                )
+                old_media_files = result.scalars().all()
+
+                for media_file in old_media_files:
+                    await session.delete(media_file)
+                    deleted_count += 1
+
+                await session.commit()
+                logger.info("Cleaned up %d old media files", deleted_count)
+                return deleted_count
+
+        except Exception:
+            logger.exception("Failed to cleanup old media files")
+            return 0
+
+
 # Global repository instances
 _session_repo: SessionRepository | None = None
 _message_repo: MessageRepository | None = None
+_media_file_repo: MediaFileRepository | None = None
 
 
 def get_session_repository() -> SessionRepository:
@@ -228,3 +389,11 @@ def get_message_repository() -> MessageRepository:
     if _message_repo is None:
         _message_repo = MessageRepository()
     return _message_repo
+
+
+def get_media_file_repository() -> MediaFileRepository:
+    """Get global media file repository instance."""
+    global _media_file_repo  # noqa: PLW0603
+    if _media_file_repo is None:
+        _media_file_repo = MediaFileRepository()
+    return _media_file_repo

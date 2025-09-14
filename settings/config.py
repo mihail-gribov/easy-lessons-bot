@@ -27,6 +27,12 @@ class Settings(BaseSettings):
         description="OpenRouter API key for LLM access",
         min_length=1,
     )
+    
+    # OpenAI API Configuration (for Whisper)
+    openai_api_key: str = Field(
+        default="",
+        description="OpenAI API key for Whisper transcription (optional)",
+    )
     openrouter_model: str = Field(
         default="gpt-4o-mini",
         description="OpenRouter model to use",
@@ -68,6 +74,48 @@ class Settings(BaseSettings):
         description="Hours after which to cleanup old sessions",
         ge=1,
         le=8760,  # 1 year
+    )
+
+    # Multimedia Configuration
+    audio_enabled: bool = Field(
+        default=True,
+        description="Enable audio processing (voice messages)",
+    )
+    image_analysis_enabled: bool = Field(
+        default=True,
+        description="Enable image analysis through Vision API",
+    )
+    whisper_model: str = Field(
+        default="whisper-1",
+        description="Whisper model for speech recognition",
+    )
+    tts_enabled: bool = Field(
+        default=False,
+        description="Enable text-to-speech synthesis",
+    )
+    tts_provider: str = Field(
+        default="gtts",
+        description="TTS provider (gtts, pyttsx3)",
+    )
+    vision_model: str = Field(
+        default="gpt-4o",
+        description="Vision model for image analysis",
+    )
+    max_image_size: int = Field(
+        default=5242880,  # 5MB
+        description="Maximum image file size in bytes",
+        ge=1024,
+        le=20971520,  # 20MB
+    )
+    max_audio_duration: int = Field(
+        default=60,
+        description="Maximum audio duration in seconds",
+        ge=1,
+        le=300,  # 5 minutes
+    )
+    temp_dir: str = Field(
+        default="data/temp",
+        description="Directory for temporary media files",
     )
 
 

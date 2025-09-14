@@ -8,7 +8,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from bot.handlers import router
+from bot.handlers import initialize_media_handlers, router
 from core.logging_config import setup_logging
 from core.persistence import close_database, initialize_database, initialize_migrations
 
@@ -55,6 +55,9 @@ async def main() -> None:
         token=settings.telegram_bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
+
+    # Initialize media handlers with bot instance first
+    initialize_media_handlers(bot)
 
     # Initialize dispatcher
     dp = Dispatcher()

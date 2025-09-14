@@ -5,6 +5,7 @@ A Telegram bot for simple, friendly explanations powered by an LLM (OpenRouter v
 ## Features
 - **Aiogram 3** (long polling)
 - **Two-model architecture**: auxiliary analysis + dialog model for intelligent context understanding
+- **Multimedia support**: Voice messages and image analysis
 - **Persistent data storage** with SQLite and graceful degradation
 - **In-memory session state** with message history
 - **Prompt store** with dynamic context and scenario-based responses
@@ -98,6 +99,15 @@ A Telegram bot for simple, friendly explanations powered by an LLM (OpenRouter v
 - `DATABASE_ENABLED` (default: `true`) - Enable database persistence
 - `DATABASE_PATH` (default: `data/bot.db`) - Path to SQLite database file
 - `DATABASE_CLEANUP_HOURS` (default: `168`) - Hours after which to cleanup old sessions (7 days)
+- `AUDIO_ENABLED` (default: `true`) - Enable audio processing (voice messages)
+- `IMAGE_ANALYSIS_ENABLED` (default: `true`) - Enable image analysis through Vision API
+- `WHISPER_MODEL` (default: `whisper-1`) - Whisper model for speech recognition
+- `TTS_ENABLED` (default: `false`) - Enable text-to-speech synthesis
+- `TTS_PROVIDER` (default: `gtts`) - TTS provider (gtts, pyttsx3)
+- `VISION_MODEL` (default: `gpt-4o`) - Vision model for image analysis
+- `MAX_IMAGE_SIZE` (default: `5242880`) - Maximum image file size in bytes (5MB)
+- `MAX_AUDIO_DURATION` (default: `60`) - Maximum audio duration in seconds
+- `TEMP_DIR` (default: `data/temp`) - Directory for temporary media files
 
 ## Architecture
 
@@ -115,6 +125,26 @@ The bot uses a sophisticated two-model architecture:
    - Scenario-specific prompts
    - User's understanding level
    - Conversation history
+
+### Multimedia Processing
+The bot supports rich multimedia interactions:
+
+1. **Voice Messages**: 
+   - Speech recognition using local Whisper model (planned) or OpenAI API
+   - Intent analysis and context matching
+   - Natural language processing of spoken questions
+   - Fallback to text input if transcription is unavailable
+
+2. **Image Analysis**:
+   - Visual content analysis using GPT-4 Vision API
+   - Text extraction from images (OCR)
+   - Educational content recognition
+   - Context-aware responses based on visual content
+
+3. **Media Context Integration**:
+   - Seamless integration with existing conversation flow
+   - Intelligent scenario selection based on media content
+   - Adaptive responses based on media type and content
 
 ### Data Persistence
 - **SQLite database** for persistent storage
@@ -218,9 +248,65 @@ See `doc/vision.md` for architecture and tech vision.
 
 ## Usage examples
 - Start the bot in Telegram and send:
-  - "Новая тема" — to begin a new topic.
-  - "Объясни дроби простыми словами" — the bot explains fractions simply.
-  - "Почему небо голубое?" — the bot answers and may ask a follow-up.
+  - **Text messages**: "Новая тема", "Объясни дроби простыми словами", "Почему небо голубое?"
+  - **Voice messages**: Record your question and send as voice message for speech recognition
+  - **Images**: Send photos of math problems, diagrams, or educational content for visual analysis
 - The bot adapts explanations to a child-friendly style and keeps short dialog history (up to 30 messages).
 - **Persistent sessions**: Your conversation history is saved and restored between bot restarts.
 - **Intelligent context**: The bot remembers your understanding level and adapts explanations accordingly.
+- **Multimedia support**: Seamlessly handles voice and image content with intelligent analysis
+
+## Audio Transcription (Whisper)
+
+### Current Status
+✅ **Audio transcription is working** - Voice messages are successfully transcribed using OpenAI API
+⚠️ **Pipeline inconsistency** - Audio messages use a separate processing pipeline instead of the main text pipeline
+
+### Planned Implementation
+We plan to implement local Whisper model for audio transcription:
+
+- **Local Whisper**: Offline speech recognition using OpenAI's Whisper model
+- **Model Options**: tiny (39MB), base (74MB), small (244MB), medium (769MB), large (1550MB)
+- **Recommended**: `small` model for best balance of quality and performance
+- **Fallback**: OpenAI API if local model is unavailable
+
+### Installation (Future)
+```bash
+# Install Whisper
+pip install openai-whisper
+
+# Install PyTorch (CPU)
+pip install torch torchaudio
+
+# Install FFmpeg
+sudo apt install ffmpeg
+```
+
+### Configuration (Future)
+```bash
+# .env
+WHISPER_LOCAL_ENABLED=true
+WHISPER_MODEL_SIZE=small
+WHISPER_DEVICE=auto
+```
+
+For detailed implementation plan, see [Whisper Implementation Guide](doc/whisper_implementation.md).
+
+## Pipeline Architecture
+
+### Current Architecture
+The bot currently uses separate processing pipelines for different message types:
+
+- **Text Pipeline**: Direct processing through main text handler
+- **Audio Pipeline**: Separate media processing pipeline with transcription
+
+### Planned Unification
+We plan to unify the pipelines so that transcribed audio text goes through the same processing pipeline as direct text messages for consistency.
+
+**Benefits**:
+- Consistent behavior for all message types
+- Reduced code duplication
+- Easier maintenance and testing
+- Unified logging and error handling
+
+For detailed technical plan, see [Pipeline Unification Guide](doc/pipeline_unification.md).

@@ -55,10 +55,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install only runtime system dependencies
+# Install runtime system dependencies including media processing libraries
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
+        libmagic1 \
+        libmagic-dev \
+        ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder stage
@@ -71,9 +74,9 @@ COPY core/ core/
 COPY settings/ settings/
 COPY scripts/ scripts/
 
-# Create non-root user, log directory, and data directory
+# Create non-root user, log directory, data directory, and temp directory
 RUN adduser --disabled-password --gecos '' appuser \
-    && mkdir -p /log /app/data \
+    && mkdir -p /log /app/data /app/data/temp \
     && chown -R appuser:appuser /app /log
 
 USER appuser

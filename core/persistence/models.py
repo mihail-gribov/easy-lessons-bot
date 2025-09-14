@@ -43,6 +43,15 @@ class Session(Base):
     user_preferences: Mapped[str] = mapped_column(
         Text, nullable=False, default="[]"
     )  # JSON array
+    media_context: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}"
+    )  # JSON object with media context
+    audio_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    image_analysis_history: Mapped[str] = mapped_column(
+        Text, nullable=False, default="[]"
+    )  # JSON array with analysis history
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=func.now()
     )
@@ -50,9 +59,12 @@ class Session(Base):
         DateTime, nullable=False, default=func.now(), onupdate=func.now()
     )
 
-    # Relationship to messages
+    # Relationship to messages and media files
     messages: Mapped[list["Message"]] = relationship(
         "Message", back_populates="session", cascade="all, delete-orphan"
+    )
+    media_files: Mapped[list["MediaFile"]] = relationship(
+        "MediaFile", back_populates="session", cascade="all, delete-orphan"
     )
 
     def to_dict(self) -> dict[str, Any]:
@@ -68,6 +80,9 @@ class Session(Base):
             "previous_understanding_level": self.previous_understanding_level,
             "previous_topic": self.previous_topic,
             "user_preferences": self.user_preferences,
+            "media_context": self.media_context,
+            "audio_enabled": self.audio_enabled,
+            "image_analysis_history": self.image_analysis_history,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -132,3 +147,53 @@ class Migration(Base):
             "name": self.name,
             "applied_at": self.applied_at,
         }
+
+
+class MediaFile(Base):
+    """Media file model for storing processed media files."""
+
+    __tablename__ = "media_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chat_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("sessions.chat_id"), nullable=False
+    )
+    file_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_type: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # "audio", "image", "document"
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    analysis_result: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}"
+    )  # JSON object with analysis results
+    context_match: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=func.now()
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=func.now()
+    )
+
+    # Relationship to session
+    session: Mapped["Session"] = relationship("Session", back_populates="media_files")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert media file to dictionary."""
+        return {
+            "id": self.id,
+            "chat_id": self.chat_id,
+            "file_id": self.file_id,
+            "file_type": self.file_type,
+            "content_type": self.content_type,
+            "analysis_result": self.analysis_result,
+            "context_match": self.context_match,
+            "processed_at": self.processed_at,
+            "created_at": self.created_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MediaFile":
+        """Create media file from dictionary."""
+        return cls(**data)

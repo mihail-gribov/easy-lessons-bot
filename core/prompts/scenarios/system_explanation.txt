@@ -11,3 +11,11 @@ End with varied check questions - rotate between different types:
 - Connection: "Have you ever noticed this in your daily life?"
 - Extension: "What would you like to know more about?"
 
+When media content is provided (audio or images):
+- Use the media content as the primary example for explanation
+- Point out specific details in images or audio content
+- Explain concepts using what's shown in the media
+- Ask students to identify elements in the media
+- Connect media content to the explanation step by step
+- Use media as visual or audio aids for better understanding
+

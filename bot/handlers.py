@@ -1,6 +1,7 @@
 """Telegram bot handlers for Easy Lessons Bot."""
 
 import logging
+from typing import Optional
 
 from aiogram import Router
 from aiogram.filters import Command
@@ -14,6 +15,7 @@ from core.readiness.checker import check_bot_readiness
 from core.session_state import get_session_manager
 from core.version_info import format_version_info
 from core.welcome_messages import get_random_welcome_message
+from bot.media_handlers import MediaHandlers
 
 logger = logging.getLogger(__name__)
 
@@ -55,13 +57,13 @@ async def version_command(message: Message) -> None:
         await message.answer("❌ Не удалось получить информацию о версии.")
 
 
-@router.message()
+@router.message(lambda message: message.text is not None)
 async def handle_text_message(message: Message) -> None:
     """Handle text messages from users."""
     chat_id = message.chat.id
     user_text = message.text or ""
 
-    logger.info("Received text message from user %s: %s", chat_id, user_text[:50])
+    logger.info("💬 Received text message from user %s: %s", chat_id, user_text[:50])
 
     try:
         # Get session state
@@ -120,3 +122,144 @@ async def handle_text_message(message: Message) -> None:
         await message.answer(error_response)
 
     # Legacy helpers are removed in the new two-model flow
+
+
+# Initialize media handlers (will be set with bot instance in main.py)
+media_handlers: Optional[MediaHandlers] = None
+
+
+def initialize_media_handlers(bot) -> None:
+    """Initialize media handlers with bot instance."""
+    global media_handlers
+    logger.info("Initializing media handlers with bot instance")
+    media_handlers = MediaHandlers(bot)
+    logger.info("Media handlers initialized successfully")
+
+
+@router.message(lambda message: message.voice is not None)
+async def handle_voice_message(message: Message) -> None:
+    """Handle voice messages by transcribing and passing to text pipeline."""
+    chat_id = message.chat.id
+    logger.info("🎤 VOICE MESSAGE RECEIVED from user %s", chat_id)
+    logger.info("Voice message details: file_id=%s, duration=%s", 
+                message.voice.file_id if message.voice else "None",
+                message.voice.duration if message.voice else "None")
+
+    if not media_handlers:
+        logger.error("Media handlers not initialized")
+        await message.answer("Извините, медиа-обработка недоступна.")
+        return
+
+    try:
+        # Transcribe audio using media handlers
+        transcript = await _transcribe_voice_message(message)
+        
+        if not transcript:
+            await message.answer("Извините, не удалось распознать голосовое сообщение.")
+            return
+            
+        logger.info("🎯 Audio transcribed: %s", transcript[:100])
+        
+        # Process transcript directly through the text message pipeline
+        # Create a temporary message object with the transcript as text
+        temp_message = message.model_copy(update={'text': transcript, 'voice': None, 'content_type': 'text'})
+        await handle_text_message(temp_message)
+        
+    except Exception as e:
+        logger.exception("Error handling voice message from user %s", chat_id)
+        await message.answer("Извините, произошла ошибка при обработке голосового сообщения.")
+
+
+@router.message(lambda message: message.photo is not None)
+async def handle_photo_message(message: Message) -> None:
+    """Handle photo messages from users."""
+    chat_id = message.chat.id
+    logger.info("Received photo message from user %s", chat_id)
+
+    if not media_handlers:
+        logger.error("Media handlers not initialized")
+        await message.answer("Извините, медиа-обработка недоступна.")
+        return
+
+    try:
+        response = await media_handlers.handle_photo_message(message, None)
+        if response:
+            await message.answer(response)
+            logger.info("Sent photo response to user %s", chat_id)
+        else:
+            await message.answer("Извините, не удалось обработать изображение.")
+    except Exception as e:
+        logger.exception("Error handling photo message from user %s", chat_id)
+        await message.answer("Извините, произошла ошибка при обработке изображения.")
+
+
+@router.message(lambda message: message.document is not None)
+async def handle_document_message(message: Message) -> None:
+    """Handle document messages from users."""
+    chat_id = message.chat.id
+    logger.info("Received document message from user %s", chat_id)
+
+    if not media_handlers:
+        logger.error("Media handlers not initialized")
+        await message.answer("Извините, медиа-обработка недоступна.")
+        return
+
+    try:
+        response = await media_handlers.handle_document_message(message, None)
+        if response:
+            await message.answer(response)
+            logger.info("Sent document response to user %s", chat_id)
+        else:
+            await message.answer("Извините, не удалось обработать документ.")
+    except Exception as e:
+        logger.exception("Error handling document message from user %s", chat_id)
+        await message.answer("Извините, произошла ошибка при обработке документа.")
+
+
+# Debug handler removed - it was blocking all other handlers
+
+
+async def _transcribe_voice_message(message: Message) -> Optional[str]:
+    """
+    Transcribe voice message using media handlers.
+    
+    Args:
+        message: Telegram message object with voice
+        
+    Returns:
+        Transcribed text or None if failed
+    """
+    try:
+        if not media_handlers:
+            logger.error("Media handlers not initialized for transcription")
+            return None
+            
+        # Get current session context
+        session_manager = get_session_manager()
+        session = await session_manager.get_session(message.chat.id)
+        session_context = session.to_dict() if session else {}
+        
+        # Process audio to get transcript
+        result = await media_handlers.media_processor.process_media(
+            file_id=message.voice.file_id,
+            file_type="voice",
+            chat_id=str(message.chat.id),
+            session_context=session_context,
+        )
+        
+        if "error" in result:
+            logger.error(f"Audio transcription error: {result['error']}")
+            return None
+            
+        transcript = result.get("transcript", "")
+        if not transcript:
+            logger.warning("No transcript returned from audio processing")
+            return None
+            
+        return transcript
+        
+    except Exception as e:
+        logger.error(f"Error transcribing voice message: {e}", exc_info=True)
+        return None
+
+
