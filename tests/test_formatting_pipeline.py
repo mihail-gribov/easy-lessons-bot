@@ -158,3 +158,5 @@ class TestFormattingPipeline:
             # Should not take too long (basic performance check)
             assert len(result) <= len(text) * 3  # Reasonable upper bound
 
+
+

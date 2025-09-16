@@ -82,3 +82,5 @@ class TestEducationalTemplates:
         result = templates.apply_formatting("", "general")
         assert result == ""
 
+
+

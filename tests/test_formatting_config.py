@@ -137,3 +137,5 @@ class TestFormattingConfiguration:
             assert "<b>📝 Например:</b>" in result
             assert "<b>✅ Ответ:</b>" in result
 
+
+
