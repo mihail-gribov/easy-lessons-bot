@@ -10,6 +10,7 @@ from aiogram.types import Message
 from core.readiness.checker import check_bot_readiness
 from core.version_info import format_version_info
 from core.welcome_messages import get_random_welcome_message
+from core.thinking_messages import get_random_thinking_message
 from core.message_processor import get_unified_processor
 from core.formatting.telegram_formatter import TelegramFormatter
 from bot.media_handlers import MediaHandlers
@@ -129,6 +130,11 @@ async def handle_photo_message(message: Message) -> None:
     """Handle photo messages from users."""
     chat_id = message.chat.id
     logger.info("📷 Received photo message from user %s", chat_id)
+
+    # Send immediate thinking message
+    thinking_message = get_random_thinking_message()
+    await message.answer(thinking_message)
+    logger.info("Sent thinking message to user %s: %s", chat_id, thinking_message)
 
     # Use unified message processor
     processor = get_unified_processor()

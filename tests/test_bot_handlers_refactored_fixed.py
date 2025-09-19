@@ -290,7 +290,17 @@ class TestRefactoredBotHandlers:
             mock_processor_instance.process_message.assert_called_once_with(
                 photo_message, "photo"
             )
-            mock_answer.assert_called_once_with("Photo response")
+            # Check that thinking message was sent first, then the response
+            assert mock_answer.call_count == 2
+            # First call should be a thinking message (any of the possible variants)
+            first_call = mock_answer.call_args_list[0]
+            assert first_call[0][0] in [
+                "минуточку, я подумаю...", "сейчас разберусь...", "дай-ка подумаю...",
+                "сейчас посмотрю внимательно...", "момент, анализирую...", "сейчас разберу что здесь...",
+                "дай секундочку подумать...", "сейчас изучу внимательно...", "момент, разбираюсь...",
+                "сейчас проанализирую..."
+            ]
+            mock_answer.assert_any_call("Photo response", parse_mode="HTML")
 
     @pytest.mark.asyncio
     async def test_handle_document_message_success(self):
