@@ -1,25 +1,29 @@
-"""Image analysis handler using GPT-4 Vision API."""
+"""Image processor for downloading and preparing images for analysis."""
 
 import asyncio
 import base64
 import logging
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import openai
 from PIL import Image
+from aiogram import Bot
 from settings.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 
-class ImageAnalyzer:
-    """Handles image analysis using GPT-4 Vision API."""
+class ImageProcessor:
+    """Handles image downloading, processing, and preparation for analysis."""
 
-    def __init__(self):
-        """Initialize image analyzer with configuration."""
+    def __init__(self, bot: Optional[Bot] = None):
+        """Initialize image processor with configuration."""
         self.settings = get_settings()
-        self.vision_model = self.settings.vision_model
+        self.bot = bot
+        self.temp_dir = Path(self.settings.temp_dir)
+        self.temp_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize OpenAI client for Vision API
         self.openai_client = openai.AsyncOpenAI(
@@ -27,45 +31,93 @@ class ImageAnalyzer:
             base_url="https://openrouter.ai/api/v1"
         )
 
-    async def analyze_image(
-        self, file_path: Path, session_context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    async def download_image(self, file_id: str) -> Optional[Path]:
         """
-        Analyze image using GPT-4 Vision API.
+        Download image from Telegram to temporary location.
+
+        Args:
+            file_id: Telegram file ID
+
+        Returns:
+            Path to downloaded file or None if failed
+        """
+        try:
+            if not self.bot:
+                logger.error("Bot instance not available for file download")
+                return None
+
+            # Create temporary file
+            temp_file = tempfile.NamedTemporaryFile(
+                dir=self.temp_dir, suffix=".jpg", delete=False
+            )
+            temp_path = Path(temp_file.name)
+            temp_file.close()
+
+            logger.info(f"Downloading image file {file_id} to {temp_path}")
+            
+            # Download file from Telegram
+            file = await self.bot.get_file(file_id)
+            if not file:
+                logger.error(f"Failed to get file info for {file_id}")
+                return None
+
+            # Download file content
+            file_content = await self.bot.download_file(file.file_path)
+            if not file_content:
+                logger.error(f"Failed to download file content for {file_id}")
+                return None
+
+            # Write content to temporary file
+            with open(temp_path, 'wb') as f:
+                f.write(file_content.read())
+
+            logger.info(f"Successfully downloaded image file to {temp_path}")
+            return temp_path
+
+        except Exception as e:
+            logger.error(f"Error downloading image: {e}", exc_info=True)
+            return None
+
+    async def prepare_image(self, file_path: Path) -> Optional[str]:
+        """
+        Prepare image for analysis by resizing and converting to base64.
 
         Args:
             file_path: Path to image file
-            session_context: Current session context
 
         Returns:
-            Image analysis results
+            Base64 encoded image data or None if failed
         """
         try:
-            if not self.settings.image_analysis_enabled:
-                return {"error": "Image analysis is disabled"}
-
-            logger.info(f"Analyzing image file: {file_path}")
+            logger.info(f"Preparing image for analysis: {file_path}")
 
             # Validate image file
             if not await self.validate_image_file(file_path):
-                return {"error": "Invalid image file"}
+                return None
 
-            # Process image
-            processed_image = await self._process_image(file_path)
-            if not processed_image:
-                return {"error": "Failed to process image"}
+            # Open and process image
+            with Image.open(file_path) as img:
+                # Convert to RGB if necessary
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
 
-            # Analyze with Vision API
-            analysis_result = await self._analyze_with_vision_api(
-                processed_image, session_context
-            )
+                # Resize if too large (max 1024x1024 as per plan)
+                max_size = 1024
+                if img.width > max_size or img.height > max_size:
+                    img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
 
-            logger.info(f"Image analysis completed: {analysis_result}")
-            return analysis_result
+                # Convert to base64
+                import io
+                buffer = io.BytesIO()
+                img.save(buffer, format="JPEG", quality=85)
+                image_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+                logger.info("Image preparation completed")
+                return image_data
 
         except Exception as e:
-            logger.error(f"Error analyzing image: {e}", exc_info=True)
-            return {"error": f"Image analysis failed: {str(e)}"}
+            logger.error(f"Error preparing image: {e}", exc_info=True)
+            return None
 
     async def validate_image_file(self, file_path: Path) -> bool:
         """
@@ -82,9 +134,10 @@ class ImageAnalyzer:
                 logger.warning(f"Image file does not exist: {file_path}")
                 return False
 
-            # Check file size
+            # Check file size (max 20MB as per plan)
             file_size = file_path.stat().st_size
-            if file_size > self.settings.max_image_size:
+            max_size_mb = 20 * 1024 * 1024  # 20MB
+            if file_size > max_size_mb:
                 logger.warning(f"Image file too large: {file_size} bytes")
                 return False
 
@@ -102,42 +155,70 @@ class ImageAnalyzer:
             logger.error(f"Error validating image file: {e}", exc_info=True)
             return False
 
-    async def _process_image(self, file_path: Path) -> Optional[str]:
+    def get_supported_formats(self) -> List[str]:
         """
-        Process image for Vision API (resize, convert format).
-
-        Args:
-            file_path: Path to image file
+        Get list of supported image formats.
 
         Returns:
-            Base64 encoded image data or None if failed
+            List of supported format extensions
+        """
+        return [".jpg", ".jpeg", ".png", ".gif", ".webp"]
+
+    async def cleanup_file(self, file_path: Path) -> None:
+        """
+        Clean up temporary file.
+
+        Args:
+            file_path: Path to file to clean up
         """
         try:
-            logger.info(f"Processing image for Vision API: {file_path}")
+            if file_path.exists():
+                file_path.unlink()
+                logger.debug(f"Cleaned up temporary file: {file_path}")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup file {file_path}: {e}")
 
-            # Open and process image
-            with Image.open(file_path) as img:
-                # Convert to RGB if necessary
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
+    async def process_image_for_analysis(
+        self, file_id: str, session_context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Complete image processing pipeline: download, prepare, and analyze.
 
-                # Resize if too large (max 2048x2048 for Vision API)
-                max_size = 2048
-                if img.width > max_size or img.height > max_size:
-                    img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        Args:
+            file_id: Telegram file ID
+            session_context: Current session context
 
-                # Convert to base64
-                import io
-                buffer = io.BytesIO()
-                img.save(buffer, format="JPEG", quality=85)
-                image_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        Returns:
+            Analysis results
+        """
+        try:
+            logger.info(f"Processing image for analysis: {file_id}")
 
-                logger.info("Image processing completed")
-                return image_data
+            # Download image
+            file_path = await self.download_image(file_id)
+            if not file_path:
+                return {"error": "Failed to download image"}
+
+            # Prepare image
+            image_data = await self.prepare_image(file_path)
+            if not image_data:
+                await self.cleanup_file(file_path)
+                return {"error": "Failed to prepare image"}
+
+            # Analyze with Vision API
+            analysis_result = await self._analyze_with_vision_api(
+                image_data, session_context
+            )
+
+            # Clean up temporary file
+            await self.cleanup_file(file_path)
+
+            logger.info(f"Image processing completed: {analysis_result}")
+            return analysis_result
 
         except Exception as e:
             logger.error(f"Error processing image: {e}", exc_info=True)
-            return None
+            return {"error": f"Image processing failed: {str(e)}"}
 
     async def _analyze_with_vision_api(
         self, image_data: str, session_context: Optional[Dict[str, Any]] = None
@@ -177,7 +258,7 @@ class ImageAnalyzer:
 
             # Call Vision API
             response = await self.openai_client.chat.completions.create(
-                model=self.vision_model,
+                model=self.settings.vision_model,
                 messages=[
                     {
                         "role": "user",
@@ -248,103 +329,3 @@ class ImageAnalyzer:
         except Exception as e:
             logger.error(f"Error in Vision API analysis: {e}", exc_info=True)
             return {"error": f"Vision API analysis failed: {str(e)}"}
-
-    async def extract_text_from_image(self, file_path: Path) -> str:
-        """
-        Extract text from image using OCR.
-
-        Args:
-            file_path: Path to image file
-
-        Returns:
-            Extracted text
-        """
-        try:
-            logger.info(f"Extracting text from image: {file_path}")
-
-            # TODO: Implement actual OCR extraction
-            # This is a placeholder for the actual implementation
-            await asyncio.sleep(0.1)  # Simulate processing time
-
-            # Placeholder result
-            extracted_text = "OCR text extraction not yet implemented"
-            logger.info(f"Text extraction completed: {len(extracted_text)} characters")
-            return extracted_text
-
-        except Exception as e:
-            logger.error(f"Error extracting text from image: {e}", exc_info=True)
-            return ""
-
-    async def identify_content_type(self, file_path: Path) -> str:
-        """
-        Identify the type of content in the image.
-
-        Args:
-            file_path: Path to image file
-
-        Returns:
-            Content type description
-        """
-        try:
-            logger.info(f"Identifying content type: {file_path}")
-
-            # TODO: Implement actual content type identification
-            # This is a placeholder for the actual implementation
-            await asyncio.sleep(0.1)  # Simulate processing time
-
-            # Placeholder result
-            content_type = "unknown"
-            logger.info(f"Content type identification completed: {content_type}")
-            return content_type
-
-        except Exception as e:
-            logger.error(f"Error identifying content type: {e}", exc_info=True)
-            return "unknown"
-
-    def get_supported_formats(self) -> List[str]:
-        """
-        Get list of supported image formats.
-
-        Returns:
-            List of supported format extensions
-        """
-        return [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
-
-    async def optimize_image_for_analysis(
-        self, input_path: Path, output_path: Path
-    ) -> bool:
-        """
-        Optimize image for better analysis results.
-
-        Args:
-            input_path: Input image path
-            output_path: Output image path
-
-        Returns:
-            True if optimization successful, False otherwise
-        """
-        try:
-            logger.info(f"Optimizing image: {input_path} -> {output_path}")
-
-            with Image.open(input_path) as img:
-                # Convert to RGB
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-
-                # Enhance contrast and brightness
-                from PIL import ImageEnhance
-                enhancer = ImageEnhance.Contrast(img)
-                img = enhancer.enhance(1.2)
-
-                enhancer = ImageEnhance.Brightness(img)
-                img = enhancer.enhance(1.1)
-
-                # Save optimized image
-                img.save(output_path, "JPEG", quality=90)
-
-            logger.info("Image optimization completed")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error optimizing image: {e}", exc_info=True)
-            return False

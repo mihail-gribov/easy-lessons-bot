@@ -47,6 +47,10 @@ class SessionState:
         self.previous_topic: str | None = None
         self.user_preferences: list[str] = []
 
+        # Image analysis fields
+        self.last_image_analysis: str | None = None
+        self.image_analysis_count: int = 0
+
         # Conversation history
         self.recent_messages: list[Message] = []
         self.updated_at = datetime.now()
@@ -83,6 +87,8 @@ class SessionState:
             "previous_understanding_level": self.previous_understanding_level,
             "previous_topic": self.previous_topic,
             "user_preferences": self.user_preferences,
+            "last_image_analysis": self.last_image_analysis,
+            "image_analysis_count": self.image_analysis_count,
             "messages": [
                 {
                     "role": msg.role,
@@ -108,6 +114,8 @@ class SessionState:
         session.previous_understanding_level = data.get("previous_understanding_level")
         session.previous_topic = data.get("previous_topic")
         session.user_preferences = data.get("user_preferences", [])
+        session.last_image_analysis = data.get("last_image_analysis")
+        session.image_analysis_count = data.get("image_analysis_count", 0)
 
         # Restore messages
         messages_data = data.get("messages", [])

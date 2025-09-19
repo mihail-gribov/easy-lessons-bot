@@ -184,37 +184,32 @@ class UnifiedMessageProcessor:
         """
         try:
             # Import here to avoid circular imports
-            from bot.handlers import media_handlers
-
-            if not media_handlers:
-                logger.error("Media handlers not initialized for media processing")
-                return None
+            from core.image_processor import ImageProcessor
 
             # Get current session context
             session = await self.session_manager.get_session(message.chat.id)
             session_context = session.to_dict() if session else {}
 
-            # Determine file_id and file_type based on message type
+            # Determine file_id based on message type
             if message_type == "photo":
                 photo = message.photo[-1] if message.photo else None
                 if not photo:
                     return None
                 file_id = photo.file_id
-                file_type = "photo"
             elif message_type == "document":
                 document = message.document
                 if not document or not document.mime_type or not document.mime_type.startswith("image/"):
                     return "Извините, я пока поддерживаю только изображения."
                 file_id = document.file_id
-                file_type = "image"
             else:
                 return None
 
-            # Process media
-            result = await media_handlers.media_processor.process_media(
+            # Process image with new ImageProcessor
+            from core.bot_instance import get_bot_instance
+            bot = get_bot_instance()
+            image_processor = ImageProcessor(bot)
+            result = await image_processor.process_image_for_analysis(
                 file_id=file_id,
-                file_type=file_type,
-                chat_id=str(message.chat.id),
                 session_context=session_context,
             )
 
@@ -222,16 +217,26 @@ class UnifiedMessageProcessor:
                 logger.error("Media processing error: %s", result["error"])
                 return None
 
-            # Extract text content
-            extracted_text = result.get("extracted_text", "")
-            content_type = result.get("content_type", message_type)
+            # Update session with image analysis results
+            if session:
+                # Set scenario to image_analysis
+                session.scenario = "image_analysis"
+                
+                # Update image analysis fields
+                import json
+                session.last_image_analysis = json.dumps(result)
+                session.image_analysis_count += 1
+                
+                # Add message with image flag
+                extracted_text = result.get("extracted_text", "")
+                content_type = result.get("content_type", message_type)
+                content = f"[{content_type}] {extracted_text}" if extracted_text else f"[{content_type}] Изображение получено"
+                
+                session.add_message("user", content)
+                await self.session_manager.save_session(session)
 
-            if extracted_text:
-                content = f"[{content_type}] {extracted_text}"
-                logger.info("Media content extracted: %s", content[:100])
-                return content
-            else:
-                return f"[{content_type}] Изображение получено"
+            # Generate educational response based on image analysis
+            return await self._generate_image_analysis_response(result, session_context)
 
         except Exception as e:
             logger.error("Error extracting media content: %s", e, exc_info=True)
@@ -261,6 +266,63 @@ class UnifiedMessageProcessor:
             }
         )
         return synthetic_message
+
+    async def _generate_image_analysis_response(
+        self, analysis_result: dict, session_context: dict
+    ) -> str:
+        """
+        Generate educational response based on image analysis.
+
+        Args:
+            analysis_result: Image analysis results
+            session_context: Current session context
+
+        Returns:
+            Generated response text
+        """
+        try:
+            content_type = analysis_result.get("content_type", "unknown")
+            extracted_text = analysis_result.get("extracted_text", "")
+            subject = analysis_result.get("subject", "general")
+            topic = analysis_result.get("topic", "unknown")
+            complexity_level = analysis_result.get("complexity_level", 5)
+            questions = analysis_result.get("questions", [])
+            educational_value = analysis_result.get("educational_value", "medium")
+
+            # Generate response based on content type
+            if content_type == "math_problem":
+                if extracted_text:
+                    return f"Я вижу математическую задачу: {extracted_text}. Давайте разберем её пошагово! С чего бы ты хотел начать?"
+                else:
+                    return f"Я вижу математическую задачу по теме '{topic}'. Давайте разберем её вместе! Что ты видишь на изображении?"
+            
+            elif content_type == "diagram":
+                if extracted_text:
+                    return f"Отличная схема! Я вижу: {extracted_text}. Это поможет нам лучше понять тему '{topic}'. Есть ли вопросы по этой схеме?"
+                else:
+                    return f"Интересная схема по теме '{topic}'! Давайте обсудим, что на ней изображено. Что ты видишь?"
+            
+            elif content_type == "text":
+                if extracted_text:
+                    return f"Я вижу текст: {extracted_text}. Давайте разберем его вместе! Что бы ты хотел узнать об этом?"
+                else:
+                    return f"Я вижу текст по теме '{topic}'. Давайте обсудим его содержание!"
+            
+            elif content_type == "photo":
+                return f"Интересное изображение! Давайте найдем в нём что-то образовательное. Что ты видишь на этой фотографии?"
+            
+            elif content_type == "chart":
+                if extracted_text:
+                    return f"Отличная диаграмма! Я вижу: {extracted_text}. Это поможет нам лучше понять данные. Что ты можешь сказать об этой диаграмме?"
+                else:
+                    return f"Интересная диаграмма по теме '{topic}'! Давайте разберем, что она показывает."
+            
+            else:
+                return f"Интересное изображение! Давайте найдем в нём что-то образовательное. Что ты видишь? Может быть, это связано с темой '{topic}'?"
+
+        except Exception as e:
+            logger.error("Error generating image analysis response: %s", e, exc_info=True)
+            return "Я получил ваше изображение. Расскажите, что вы хотели бы узнать об этом?"
 
 
 # Global unified message processor instance

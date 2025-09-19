@@ -65,6 +65,10 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
+    # Set global bot instance
+    from core.bot_instance import set_bot_instance
+    set_bot_instance(bot)
+
     # Initialize media handlers with bot instance first
     initialize_media_handlers(bot)
 

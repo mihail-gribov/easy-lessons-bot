@@ -1,25 +1,26 @@
 """Migration 002: Add media support to database schema."""
 
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
-def upgrade(connection):
+async def upgrade(session: AsyncSession) -> None:
     """Apply migration 002: Add media support."""
     # Add new columns to sessions table
-    connection.execute(text("""
+    await session.execute(text("""
         ALTER TABLE sessions ADD COLUMN media_context TEXT DEFAULT '{}';
     """))
     
-    connection.execute(text("""
+    await session.execute(text("""
         ALTER TABLE sessions ADD COLUMN audio_enabled BOOLEAN DEFAULT 1;
     """))
     
-    connection.execute(text("""
+    await session.execute(text("""
         ALTER TABLE sessions ADD COLUMN image_analysis_history TEXT DEFAULT '[]';
     """))
 
     # Create media_files table
-    connection.execute(text("""
+    await session.execute(text("""
         CREATE TABLE media_files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chat_id TEXT NOT NULL,
@@ -35,33 +36,33 @@ def upgrade(connection):
     """))
 
     # Create indexes for better performance
-    connection.execute(text("""
+    await session.execute(text("""
         CREATE INDEX idx_media_files_chat_id ON media_files (chat_id);
     """))
     
-    connection.execute(text("""
+    await session.execute(text("""
         CREATE INDEX idx_media_files_file_type ON media_files (file_type);
     """))
     
-    connection.execute(text("""
+    await session.execute(text("""
         CREATE INDEX idx_media_files_processed_at ON media_files (processed_at);
     """))
 
 
-def downgrade(connection):
+async def downgrade(session: AsyncSession) -> None:
     """Rollback migration 002: Remove media support."""
     # Drop media_files table
-    connection.execute(text("DROP TABLE IF EXISTS media_files;"))
+    await session.execute(text("DROP TABLE IF EXISTS media_files;"))
     
     # Remove columns from sessions table
-    connection.execute(text("""
+    await session.execute(text("""
         ALTER TABLE sessions DROP COLUMN media_context;
     """))
     
-    connection.execute(text("""
+    await session.execute(text("""
         ALTER TABLE sessions DROP COLUMN audio_enabled;
     """))
     
-    connection.execute(text("""
+    await session.execute(text("""
         ALTER TABLE sessions DROP COLUMN image_analysis_history;
     """))

@@ -52,6 +52,12 @@ class Session(Base):
     image_analysis_history: Mapped[str] = mapped_column(
         Text, nullable=False, default="[]"
     )  # JSON array with analysis history
+    last_image_analysis: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Result of last image analysis
+    image_analysis_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )  # Number of analyzed images
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=func.now()
     )
@@ -83,6 +89,8 @@ class Session(Base):
             "media_context": self.media_context,
             "audio_enabled": self.audio_enabled,
             "image_analysis_history": self.image_analysis_history,
+            "last_image_analysis": self.last_image_analysis,
+            "image_analysis_count": self.image_analysis_count,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -106,6 +114,12 @@ class Message(Base):
         String(20), nullable=False
     )  # "user" or "assistant"
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    has_image: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )  # Flag indicating if message contains image
+    image_file_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )  # Telegram file ID of image
     timestamp: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=func.now()
     )
@@ -120,6 +134,8 @@ class Message(Base):
             "chat_id": self.chat_id,
             "role": self.role,
             "content": self.content,
+            "has_image": self.has_image,
+            "image_file_id": self.image_file_id,
             "timestamp": self.timestamp,
         }
 
