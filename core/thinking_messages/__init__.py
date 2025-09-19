@@ -19,3 +19,4 @@ def get_random_thinking_message() -> str:
         return chosen.read_text(encoding="utf-8").strip()
     except Exception:
         return "минуточку, я подумаю..."
+
