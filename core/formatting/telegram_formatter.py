@@ -96,8 +96,12 @@ class TelegramFormatter:
         # Code: `text` -> <code>text</code>
         text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
         
+        # Headers with #: ### Header -> <b>Header</b>
+        text = re.sub(r'^#{1,6}\s*(.+)$', r'<b>\1</b>', text, flags=re.MULTILINE)
+        
         # Headers: lines that look like headers (standalone lines with specific patterns)
         # This handles cases where extracted text contains unformatted headers
+        # Skip lines that are already formatted as headers
         text = self._format_headers(text)
         
         return text
@@ -111,6 +115,11 @@ class TelegramFormatter:
             line = line.strip()
             if not line:
                 formatted_lines.append('')
+                continue
+            
+            # Skip lines that are already formatted as headers (contain <b> tags)
+            if '<b>' in line and '</b>' in line:
+                formatted_lines.append(line)
                 continue
             
             # Check if line looks like a header
