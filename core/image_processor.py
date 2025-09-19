@@ -251,6 +251,9 @@ class ImageProcessor:
             - questions: list of potential questions about the content
             - context_match: boolean indicating if this relates to current session context
             - educational_value: "high", "medium", "low", or "none"
+            - visual_elements: description of key visual elements that could be discussed
+            - discussion_points: list of suggested topics for engaging conversation
+            - interest_level: "high", "medium", or "low" indicating how interesting/engaging this content might be
             - confidence: float from 0.0-1.0 indicating confidence in the analysis
             
             Respond only with valid JSON, no additional text.

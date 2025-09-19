@@ -96,4 +96,85 @@ class TelegramFormatter:
         # Code: `text` -> <code>text</code>
         text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
         
+        # Headers: lines that look like headers (standalone lines with specific patterns)
+        # This handles cases where extracted text contains unformatted headers
+        text = self._format_headers(text)
+        
         return text
+    
+    def _format_headers(self, text: str) -> str:
+        """Format headers in extracted text for better Telegram display."""
+        lines = text.split('\n')
+        formatted_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                formatted_lines.append('')
+                continue
+            
+            # Check if line looks like a header
+            # Headers are typically short, standalone lines that don't end with punctuation
+            # and contain specific keywords or patterns
+            if self._is_header_line(line):
+                formatted_lines.append(f'<b>{line}</b>')
+            else:
+                # Check if line contains a header within it (e.g., "Я вижу текст: Заголовок")
+                formatted_line = self._extract_and_format_embedded_headers(line)
+                formatted_lines.append(formatted_line)
+        
+        return '\n'.join(formatted_lines)
+    
+    def _extract_and_format_embedded_headers(self, line: str) -> str:
+        """Extract and format headers that are embedded within a line."""
+        # Very conservative approach: only format if the part after colon looks like a clear header
+        # Pattern: "Text: Header" where Header is short and doesn't contain verbs
+        match = re.match(r'^(.*?):\s*(.+)$', line)
+        if match:
+            prefix = match.group(1)
+            potential_header = match.group(2).strip()
+            
+            # Check if the potential header looks like a real header
+            if self._is_header_line(potential_header):
+                return f"{prefix}: <b>{potential_header}</b>"
+        
+        return line
+    
+    def _is_header_line(self, line: str) -> bool:
+        """Check if a line looks like a header."""
+        # Skip empty lines
+        if not line or len(line.strip()) == 0:
+            return False
+        
+        # Skip lines that are too long (likely not headers)
+        if len(line) > 100:
+            return False
+        
+        # Skip lines that end with punctuation (likely not headers)
+        if line.endswith(('.', '!', '?', ':', ';', ',')):
+            return False
+        
+        # Skip lines that start with numbers or bullets
+        if re.match(r'^\d+\.', line) or re.match(r'^[-*•]', line):
+            return False
+        
+        # Skip lines that start with common sentence starters
+        sentence_starters = ['я вижу', 'я вижу:', 'я вижу текст:', 'я вижу математическую', 'я вижу физическую', 'я вижу химическую', 'я вижу историческую', 'я вижу географическую', 'я вижу литературную', 'я вижу языковую']
+        if any(line.lower().startswith(starter) for starter in sentence_starters):
+            return False
+        
+        # Very conservative approach: only format lines that are clearly standalone headers
+        # Check if line is a short, standalone phrase without verbs
+        words = line.split()
+        if len(words) <= 6 and len(words) >= 2:
+            # Headers typically don't contain verbs in past tense or present tense
+            verb_indicators = ['был', 'была', 'было', 'были', 'есть', 'является', 'являются', 'находится', 'находятся', 'вижу', 'вижу:', 'вижу текст:', 'поставили', 'перевезли', 'взимали', 'брали']
+            if not any(verb in line.lower() for verb in verb_indicators):
+                # Additional check: should not contain common sentence words
+                sentence_words = ['в', 'на', 'с', 'по', 'для', 'от', 'до', 'из', 'к', 'у', 'о', 'об', 'при', 'через', 'между', 'среди', 'вокруг', 'около', 'возле', 'близ', 'далеко', 'рядом']
+                # If the line contains too many prepositions, it's likely not a header
+                preposition_count = sum(1 for word in words if word.lower() in sentence_words)
+                if preposition_count <= 2:  # Allow up to 2 prepositions for compound headers
+                    return True
+        
+        return False
