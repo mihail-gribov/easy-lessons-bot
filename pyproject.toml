@@ -1,6 +1,6 @@
 [project]
 name = "easy-lessons-bot"
-version = "0.1.9"
+version = "0.1.10"
 description = "Telegram bot for easy learning with LLM"
 requires-python = ">=3.12"
 dependencies = [

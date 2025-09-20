@@ -20,3 +20,4 @@ def get_random_thinking_message() -> str:
     except Exception:
         return "минуточку, я подумаю..."
 
+

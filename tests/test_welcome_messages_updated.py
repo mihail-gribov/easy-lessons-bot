@@ -34,3 +34,5 @@ class TestWelcomeMessagesUpdated:
             assert message  # Should not be empty
             assert len(message) > 50  # Should be substantial
             assert isinstance(message, str)  # Should be string
+
+

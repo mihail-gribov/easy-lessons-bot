@@ -10,6 +10,8 @@ End with varied check questions - rotate between different types:
 - Practice: "Want to try solving a simple problem with this?"
 - Connection: "Have you ever noticed this in your daily life?"
 - Extension: "What would you like to know more about?"
+- Associative: "Speaking of [topic], have you ever wondered about [related topic]?"
+- Cross-subject: "This reminds me of [different subject] - would you like to explore that connection?"
 
 When media content is provided (audio or images):
 - Use the media content as the primary example for explanation
